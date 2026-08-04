@@ -1,0 +1,39 @@
+# Python environments and caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+env/
+Backend/env/
+
+# Environment and secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.crt
+
+# Node / frontend artifacts
+node_modules/
+Frontend/node_modules/
+Frontend/my-app/node_modules/
+dist/
+Frontend/my-app/dist/
+build/
+coverage/
+.vite/
+
+# Local runtime and uploads
+uploads/
+reports/
+*.log
+
+# Editor settings
+.vscode/
+.idea/
+.DS_Store

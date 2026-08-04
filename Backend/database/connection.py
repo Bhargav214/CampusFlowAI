@@ -1,0 +1,1 @@
+DB_CONNECTION="postgresql://mrbhargav:!SAI21@localhost:5433/postgres"
