@@ -1,6 +1,6 @@
+from __future__ import annotations
 from models.student import Student
 from models.subject import Subject
-from __future__ import annotations
 
 from datetime import datetime
 

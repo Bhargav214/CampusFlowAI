@@ -1,12 +1,12 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from models.faculty import Faculty
     from models.student import Student
     from models.marks import Mark
-    from models.attendence import Attendance
+    from models.attendance import Attendance
     
-from __future__ import annotations
 
 from datetime import datetime
 
@@ -31,12 +31,19 @@ class Subject(Base):
     subject_code: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    department_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("departments.id"), nullable=True)
     semester: Mapped[int | None] = mapped_column(Integer, nullable=True)
     credit_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     faculty_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("faculty.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     faculty: Mapped["Faculty | None"] = relationship(back_populates="subjects")
+    department_rel: Mapped["Department | None"] = relationship("Department", foreign_keys=[department_id])
+    departments: Mapped[list["Department"]] = relationship(
+        "Department",
+        secondary="department_subject_association",
+        back_populates="subjects",
+    )
     students: Mapped[list["Student"]] = relationship(
         secondary=student_subject_association,
         back_populates="subjects",

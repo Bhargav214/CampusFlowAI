@@ -1,12 +1,12 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from models.user import User
     from models.marks import Mark
-    from models.attendence import Attendance
+    from models.attendance import Attendance
     from models.subject import Subject
     
-from __future__ import annotations
 
 from datetime import datetime
 
@@ -26,6 +26,7 @@ class Student(Base):
     email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    department_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("departments.id"), nullable=True)
     semester: Mapped[int | None] = mapped_column(Integer, nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, unique=True)
@@ -38,6 +39,7 @@ class Student(Base):
     )
 
     user: Mapped["User | None"] = relationship(back_populates="student")
+    department_rel: Mapped["Department | None"] = relationship("Department", back_populates="students")
     marks: Mapped[list["Mark"]] = relationship(back_populates="student", cascade="all, delete-orphan")
     attendances: Mapped[list["Attendance"]] = relationship(
         back_populates="student",

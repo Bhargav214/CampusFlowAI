@@ -1,39 +1,78 @@
+# Dependencies
+node_modules/
+*/node_modules/
+*/*/node_modules/
+Frontend/node_modules/
+Frontend/my-app/node_modules/
+
 # Python environments and caches
 __pycache__/
+*/__pycache__/
+*/*/__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .pytest_cache/
+*/.pytest_cache/
 *.egg-info/
 .venv/
+*/.venv/
 venv/
+*/venv/
 env/
+*/env/
 Backend/env/
 
-# Environment and secrets
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+test_campusflow.db
+Backend/test_campusflow.db
+
+# Build outputs & caches
+dist/
+*/dist/
+Frontend/my-app/dist/
+dist-ssr/
+build/
+coverage/
+.vite/
+.eslintcache
+eslint-report.json
+Frontend/my-app/eslint-report.json
+
+# Temporary scripts
+write_*.py
+Frontend/my-app/write_*.py
+
+# Environment variables & secrets
 .env
 .env.*
+!.env.example
+!**/.env.example
 *.env
 *.pem
 *.key
 *.crt
 
-# Node / frontend artifacts
-node_modules/
-Frontend/node_modules/
-Frontend/my-app/node_modules/
-dist/
-Frontend/my-app/dist/
-build/
-coverage/
-.vite/
-
-# Local runtime and uploads
-uploads/
-reports/
-*.log
-
-# Editor settings
+# Editor & OS files
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs and runtime
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+uploads/
+reports/

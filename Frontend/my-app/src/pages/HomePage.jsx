@@ -1,10 +1,19 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
 function HomePage() {
-  return (
-    <div style={{ padding: '2rem' }}>
-      <h1>Home</h1>
-      <p>Students Page</p>
-    </div>
-  )
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = localStorage.getItem("campusflow_token");
+    if (token) {
+      navigate("/dashboard", { replace: true });
+    } else {
+      navigate("/login", { replace: true });
+    }
+  }, [navigate]);
+
+  return null;
 }
 
-export default HomePage
+export default HomePage;

@@ -26,7 +26,7 @@ class AttendanceUpdate(BaseModel):
     remarks: Optional[str] = Field(default=None, max_length=255)
 
 
-class AttendanceRead(AttendanceBase):
+class AttendanceResponse(AttendanceBase):
     id: int
     created_at: datetime
 

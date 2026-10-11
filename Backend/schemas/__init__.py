@@ -1,13 +1,13 @@
-from .attendance import AttendanceCreate, AttendanceRead, AttendanceUpdate
+from .attendance import AttendanceCreate, AttendanceResponse, AttendanceUpdate
 from .faculty import FacultyCreate, FacultyRead, FacultyUpdate
-from .marks import MarkCreate, MarkRead, MarkUpdate
+from .marks import MarkCreate, MarkResponse, MarkUpdate
 from .student import StudentCreate, StudentRead, StudentUpdate
 from .subject import SubjectCreate, SubjectRead, SubjectUpdate
 from .user import UserCreate, UserRead, UserUpdate
 
 __all__ = [
     "AttendanceCreate",
-    "AttendanceRead",
+    "AttendanceResponse",
     "AttendanceUpdate",
     "FacultyCreate",
     "FacultyRead",

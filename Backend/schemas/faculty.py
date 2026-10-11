@@ -18,6 +18,7 @@ class FacultyBase(BaseModel):
 
 class FacultyCreate(FacultyBase):
     user_id: Optional[int] = None
+    password: str = Field(..., min_length=8, max_length=100)
 
 
 class FacultyUpdate(BaseModel):
@@ -38,3 +39,6 @@ class FacultyRead(FacultyBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+FacultyResponse = FacultyRead
