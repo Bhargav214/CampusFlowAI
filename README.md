@@ -26,7 +26,6 @@ CampusFlow AI streamlines institutional workflows, student lifecycle management,
 - **Authentication**: OAuth2 with JWT tokens (`python-jose`, `passlib[bcrypt]`)
 - **Machine Learning**: Scikit-Learn (`RandomForestClassifier`), NumPy, Pandas
 - **Validation**: Pydantic v2
-- **Testing**: Pytest
 
 ### Frontend
 - **Framework**: [React](https://react.dev/) + [Vite](https://vitejs.dev/)
@@ -124,7 +123,6 @@ CampusFlow/
 │   ├── models/              # SQLAlchemy database models
 │   ├── schemas/             # Pydantic request/response schemas
 │   ├── services/            # Core business logic services
-│   ├── tests/               # Backend test suites
 │   ├── main.py              # Application entry point
 │   └── requirements.txt     # Python dependencies
 │
@@ -142,16 +140,6 @@ CampusFlow/
 │
 ├── .gitignore
 └── README.md
-```
-
----
-
-## 🧪 Running Tests
-
-### Backend Tests
-```bash
-cd Backend
-pytest
 ```
 
 ---
