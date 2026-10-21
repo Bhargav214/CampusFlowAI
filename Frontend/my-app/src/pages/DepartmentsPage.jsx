@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -10,32 +10,75 @@ import {
   UserRound,
   BarChart2,
   Edit2,
+  Trash2,
   CheckCircle2,
   XCircle,
   X,
   AlertTriangle,
   RefreshCw,
+  BookOpen,
+  ShieldAlert,
+  Sparkles,
+  PieChart as PieChartIcon,
+  Layers,
+  GraduationCap,
+  Activity,
+  Check,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 import "./Pages.css";
+import "./DepartmentsPage.css";
+
+// Color palette for charts
+const CHART_COLORS = ["#38BDF8", "#818CF8", "#A855F7", "#10B981", "#F59E0B", "#F43F5E", "#06B6D4"];
 
 export default function DepartmentsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
+  // Data states
   const [departments, setDepartments] = useState([]);
   const [facultyList, setFacultyList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
+  // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  // Analytics Collapsible
+  const [showOverviewAnalytics, setShowOverviewAnalytics] = useState(false);
+
+  // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedDept, setSelectedDept] = useState(null);
+
+  // Delete Confirmation Modal
+  const [deleteDept, setDeleteDept] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Analytics Drawer / Modal
   const [analyticsDept, setAnalyticsDept] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Toast Notification
+  const [toast, setToast] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -48,13 +91,36 @@ export default function DepartmentsPage() {
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchDepartments = useCallback(async () => {
-    setLoading(true);
+  const showToastNotification = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
+
+  // Keyboard accessibility: ESC to close modals
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setShowAddModal(false);
+        setShowEditModal(false);
+        setAnalyticsDept(null);
+        setDeleteDept(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const fetchDepartments = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     setError(null);
+
     try {
       let url = "/departments/";
       const params = new URLSearchParams();
-      if (searchQuery) params.append("q", searchQuery);
+      if (searchQuery.trim()) params.append("q", searchQuery.trim());
       if (statusFilter !== "all") params.append("is_active", statusFilter === "active");
 
       if (params.toString()) {
@@ -62,12 +128,13 @@ export default function DepartmentsPage() {
       }
 
       const res = await api.get(url);
-      setDepartments(res.data);
+      setDepartments(res.data || []);
     } catch (err) {
       console.error("Failed to load departments:", err);
-      setError(err.response?.data?.detail || "Failed to load departments.");
+      setError(err.response?.data?.detail || "Failed to load academic departments.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [searchQuery, statusFilter]);
 
@@ -131,18 +198,19 @@ export default function DepartmentsPage() {
 
     try {
       const payload = {
-        department_code: formData.department_code,
-        department_name: formData.department_name,
-        description: formData.description || null,
+        department_code: formData.department_code.trim().toUpperCase(),
+        department_name: formData.department_name.trim(),
+        description: formData.description?.trim() || null,
         head_of_department_id: formData.head_of_department_id ? Number(formData.head_of_department_id) : null,
         is_active: formData.is_active,
       };
 
       await api.post("/departments/", payload);
       setShowAddModal(false);
+      showToastNotification(`Department '${payload.department_code}' created successfully!`);
       fetchDepartments();
     } catch (err) {
-      setFormError(err.response?.data?.detail || "Failed to create department.");
+      setFormError(err.response?.data?.detail || "Failed to create department. Verify the code is unique.");
     } finally {
       setSubmitting(false);
     }
@@ -156,15 +224,16 @@ export default function DepartmentsPage() {
 
     try {
       const payload = {
-        department_code: formData.department_code,
-        department_name: formData.department_name,
-        description: formData.description || null,
+        department_code: formData.department_code.trim().toUpperCase(),
+        department_name: formData.department_name.trim(),
+        description: formData.description?.trim() || null,
         head_of_department_id: formData.head_of_department_id ? Number(formData.head_of_department_id) : 0,
         is_active: formData.is_active,
       };
 
       await api.put(`/departments/${selectedDept.id}`, payload);
       setShowEditModal(false);
+      showToastNotification(`Department '${payload.department_code}' updated successfully!`);
       fetchDepartments();
     } catch (err) {
       setFormError(err.response?.data?.detail || "Failed to update department.");
@@ -176,335 +245,685 @@ export default function DepartmentsPage() {
   const handleToggleStatus = async (dept) => {
     try {
       await api.patch(`/departments/${dept.id}/status`, { is_active: !dept.is_active });
+      showToastNotification(
+        `Department '${dept.department_code}' is now ${!dept.is_active ? "Active" : "Inactive"}.`
+      );
       fetchDepartments();
     } catch (err) {
       alert(err.response?.data?.detail || "Failed to update department status.");
     }
   };
 
-  // Stats calculation
+  const handleDeleteDepartment = async () => {
+    if (!deleteDept) return;
+    setDeleting(true);
+    try {
+      const res = await api.delete(`/departments/${deleteDept.id}`);
+      setDeleteDept(null);
+      showToastNotification(res.data?.message || `Department removed or archived safely.`);
+      fetchDepartments();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Failed to delete department.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
+
+  // Real Stats Calculations from backend data
   const totalDepts = departments.length;
-  const activeDepts = departments.filter((d) => d.is_active).length;
-  const totalStudents = departments.reduce((acc, d) => acc + (d.student_count || 0), 0);
-  const totalFaculty = departments.reduce((acc, d) => acc + (d.faculty_count || 0), 0);
+  const activeDepts = useMemo(() => departments.filter((d) => d.is_active).length, [departments]);
+  const totalStudents = useMemo(() => departments.reduce((acc, d) => acc + (d.student_count || 0), 0), [departments]);
+  const totalFaculty = useMemo(() => departments.reduce((acc, d) => acc + (d.faculty_count || 0), 0), [departments]);
+
+  // Real Data for Recharts Overview
+  const barChartData = useMemo(() => {
+    return departments.map((d) => ({
+      code: d.department_code,
+      name: d.department_name,
+      students: d.student_count || 0,
+      faculty: d.faculty_count || 0,
+      subjects: d.subject_count || 0,
+    }));
+  }, [departments]);
+
+  const pieChartData = useMemo(() => {
+    const listWithStudents = departments.filter((d) => (d.student_count || 0) > 0);
+    if (listWithStudents.length > 0) {
+      return listWithStudents.map((d) => ({
+        name: d.department_code,
+        fullName: d.department_name,
+        value: d.student_count,
+      }));
+    }
+    // If student counts are not yet populated, show faculty distribution
+    return departments.map((d) => ({
+      name: d.department_code,
+      fullName: d.department_name,
+      value: d.faculty_count || 1,
+    }));
+  }, [departments]);
+
+  const hasPieData = pieChartData.some((item) => item.value > 0);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-            <Building2 className="w-7 h-7 text-indigo-400" />
-            Multi-Department Management
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Organize academic departments, associate faculty & students, and track department-level analytics.
-          </p>
-        </div>
-
-        {isAdmin && (
-          <button
-            onClick={openAddModal}
-            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-indigo-600/20"
-          >
-            <Plus className="w-4 h-4" />
-            Add Department
-          </button>
-        )}
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Total Departments</span>
-            <Building2 className="w-5 h-5 text-indigo-400" />
+    <div className="dept-page">
+      {/* ── 1. PAGE HEADER ────────────────────────────────────────────────── */}
+      <header className="dept-header-wrap">
+        <div className="dept-header-info">
+          <div className="dept-header-icon-box" aria-hidden="true">
+            <Building2 size={28} strokeWidth={2} />
           </div>
-          <p className="text-2xl font-bold text-slate-100 mt-2">{totalDepts}</p>
-        </div>
-
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Active Departments</span>
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          <div>
+            <div className="dept-eyebrow">
+              <span>CampusFlow AI</span>
+              <span className="dept-eyebrow-pill">Academic Intelligence</span>
+            </div>
+            <h1 className="dept-title">Department Management</h1>
+            <p className="dept-subtitle">
+              Manage academic departments, faculty assignments, and department-level performance.
+            </p>
           </div>
-          <p className="text-2xl font-bold text-slate-100 mt-2">{activeDepts}</p>
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Total Enrolled Students</span>
-            <Users className="w-5 h-5 text-blue-400" />
-          </div>
-          <p className="text-2xl font-bold text-slate-100 mt-2">{totalStudents}</p>
-        </div>
-
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Assigned Faculty</span>
-            <UserRound className="w-5 h-5 text-purple-400" />
-          </div>
-          <p className="text-2xl font-bold text-slate-100 mt-2">{totalFaculty}</p>
-        </div>
-      </div>
-
-      {/* Controls Bar */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-900/60 border border-slate-800 p-4 rounded-xl">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search department name or code..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500"
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
-          </select>
-
-          <button
-            onClick={fetchDepartments}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition"
-            title="Refresh list"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      {loading ? (
-        <div className="p-12 text-center text-slate-400 bg-slate-900/40 border border-slate-800 rounded-xl">
-          Loading departments...
-        </div>
-      ) : error ? (
-        <div className="p-6 bg-red-950/40 border border-red-800/50 rounded-xl text-red-300 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : departments.length === 0 ? (
-        <div className="p-12 text-center bg-slate-900/40 border border-slate-800 rounded-xl">
-          <Building2 className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-slate-300">No departments found</h3>
-          <p className="text-sm text-slate-500 mt-1">
-            {searchQuery ? "Try refining your search query." : "Click 'Add Department' to create your first department."}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {departments.map((dept) => (
-            <div
-              key={dept.id}
-              className={`bg-slate-900/60 border ${
-                dept.is_active ? "border-slate-800 hover:border-slate-700" : "border-slate-800/50 opacity-75"
-              } rounded-xl p-5 transition flex flex-col justify-between`}
+        <div className="dept-header-actions">
+          {isAdmin && (
+            <button
+              onClick={openAddModal}
+              className="dept-primary-btn"
+              id="add-department-btn"
+              title="Add New Academic Department"
             >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="px-2.5 py-1 text-xs font-mono font-bold bg-indigo-950 text-indigo-300 border border-indigo-800/60 rounded-md">
-                      {dept.department_code}
-                    </span>
-                    <h3 className="text-lg font-semibold text-slate-100 mt-2">{dept.department_name}</h3>
-                  </div>
+              <Plus size={18} strokeWidth={2.5} />
+              <span>Add Department</span>
+            </button>
+          )}
+        </div>
+      </header>
 
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      dept.is_active
-                        ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800/50"
-                        : "bg-slate-800 text-slate-400 border border-slate-700"
-                    }`}
-                  >
-                    {dept.is_active ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                    {dept.is_active ? "Active" : "Inactive"}
-                  </span>
-                </div>
-
-                <p className="text-xs text-slate-400 mt-2 line-clamp-2">
-                  {dept.description || "No department description provided."}
-                </p>
-
-                {dept.head_of_department && (
-                  <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center gap-2 text-xs text-slate-300">
-                    <UserRound className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>
-                      HOD: <strong className="text-slate-200">{dept.head_of_department.first_name} {dept.head_of_department.last_name}</strong>
-                    </span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-800/60 text-center">
-                  <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/40">
-                    <span className="block text-xs text-slate-400">Students</span>
-                    <span className="text-sm font-bold text-slate-200">{dept.student_count}</span>
-                  </div>
-                  <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/40">
-                    <span className="block text-xs text-slate-400">Faculty</span>
-                    <span className="text-sm font-bold text-slate-200">{dept.faculty_count}</span>
-                  </div>
-                  <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/40">
-                    <span className="block text-xs text-slate-400">Subjects</span>
-                    <span className="text-sm font-bold text-slate-200">{dept.subject_count}</span>
-                  </div>
+      {/* ── 2. STATISTICS CARDS (Responsive Horizontal Grid) ─────────────── */}
+      <section className="dept-stats-grid" aria-label="Department Statistics">
+        {loading ? (
+          <>
+            <div className="dept-skeleton dept-skeleton-stat" />
+            <div className="dept-skeleton dept-skeleton-stat" />
+            <div className="dept-skeleton dept-skeleton-stat" />
+            <div className="dept-skeleton dept-skeleton-stat" />
+          </>
+        ) : (
+          <>
+            {/* Card 1: Total Departments */}
+            <div className="dept-stat-card blue">
+              <div className="dept-stat-top">
+                <span className="dept-stat-label">Total Departments</span>
+                <div className="dept-stat-icon-wrap">
+                  <Building2 size={20} strokeWidth={2} />
                 </div>
               </div>
+              <div className="dept-stat-number">{totalDepts}</div>
+              <div className="dept-stat-subtext">
+                <Sparkles size={12} color="#38bdf8" />
+                <span>Academic faculties in campus</span>
+              </div>
+            </div>
 
-              <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between gap-2">
-                <button
-                  onClick={() => openAnalytics(dept)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg text-xs font-medium transition"
-                >
-                  <BarChart2 className="w-3.5 h-3.5" />
-                  Analytics
+            {/* Card 2: Active Departments */}
+            <div className="dept-stat-card emerald">
+              <div className="dept-stat-top">
+                <span className="dept-stat-label">Active Departments</span>
+                <div className="dept-stat-icon-wrap">
+                  <CheckCircle2 size={20} strokeWidth={2} />
+                </div>
+              </div>
+              <div className="dept-stat-number">{activeDepts}</div>
+              <div className="dept-stat-subtext">
+                <Activity size={12} color="#10b981" />
+                <span>
+                  {totalDepts > 0 ? `${Math.round((activeDepts / totalDepts) * 100)}% operational rate` : "No units registered"}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: Total Enrolled Students */}
+            <div className="dept-stat-card violet">
+              <div className="dept-stat-top">
+                <span className="dept-stat-label">Total Enrolled Students</span>
+                <div className="dept-stat-icon-wrap">
+                  <GraduationCap size={20} strokeWidth={2} />
+                </div>
+              </div>
+              <div className="dept-stat-number">{totalStudents}</div>
+              <div className="dept-stat-subtext">
+                <Users size={12} color="#c084fc" />
+                <span>Across all departments</span>
+              </div>
+            </div>
+
+            {/* Card 4: Assigned Faculty */}
+            <div className="dept-stat-card amber">
+              <div className="dept-stat-top">
+                <span className="dept-stat-label">Assigned Faculty</span>
+                <div className="dept-stat-icon-wrap">
+                  <UserRound size={20} strokeWidth={2} />
+                </div>
+              </div>
+              <div className="dept-stat-number">{totalFaculty}</div>
+              <div className="dept-stat-subtext">
+                <BookOpen size={12} color="#fbbf24" />
+                <span>Professors & instructors</span>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* ── 3. SEARCH AND FILTERS TOOLBAR ─────────────────────────────────── */}
+      <section className="dept-toolbar" aria-label="Search and Filter Controls">
+        <div className="dept-toolbar-left">
+          <div className="dept-search-box">
+            <Search size={16} className="dept-search-icon" />
+            <input
+              id="department-search-input"
+              type="text"
+              placeholder="Search departments by name or code..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="dept-search-input"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="dept-search-clear"
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="dept-segmented-filter" role="tablist">
+            <button
+              onClick={() => setStatusFilter("all")}
+              className={`dept-segmented-btn ${statusFilter === "all" ? "active" : ""}`}
+            >
+              All ({totalDepts})
+            </button>
+            <button
+              onClick={() => setStatusFilter("active")}
+              className={`dept-segmented-btn ${statusFilter === "active" ? "active" : ""}`}
+            >
+              Active ({activeDepts})
+            </button>
+            <button
+              onClick={() => setStatusFilter("inactive")}
+              className={`dept-segmented-btn ${statusFilter === "inactive" ? "active" : ""}`}
+            >
+              Inactive ({totalDepts - activeDepts})
+            </button>
+          </div>
+        </div>
+
+        <div className="dept-toolbar-right">
+          {departments.length > 0 && (
+            <button
+              onClick={() => setShowOverviewAnalytics((prev) => !prev)}
+              className="dept-analytics-toggle"
+              title="Toggle Academic Overview Analytics"
+            >
+              <BarChart2 size={14} />
+              <span>{showOverviewAnalytics ? "Hide Benchmarks" : "Academic Benchmarks"}</span>
+              {showOverviewAnalytics ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
+
+          {(searchQuery || statusFilter !== "all") && (
+            <button onClick={handleClearFilters} className="dept-clear-filter-btn">
+              Reset Filters
+            </button>
+          )}
+
+          <button
+            onClick={() => fetchDepartments(true)}
+            className={`dept-refresh-btn ${refreshing ? "spinning" : ""}`}
+            title="Refresh department list"
+            aria-label="Refresh departments"
+          >
+            <RefreshCw size={15} />
+          </button>
+        </div>
+      </section>
+
+      {/* ── 5. DEPARTMENT ANALYTICS SECTION (Collapsible Overview) ─────────── */}
+      {showOverviewAnalytics && departments.length > 0 && (
+        <section className="dept-analytics-panel" aria-label="Executive Academic Analytics">
+          <div className="dept-analytics-header">
+            <div>
+              <h2 className="dept-analytics-title">
+                <BarChart2 size={18} color="#38bdf8" />
+                Department Comparisons & Distribution
+              </h2>
+              <div className="dept-analytics-sub">
+                Live metrics rendered directly from campus database responses
+              </div>
+            </div>
+            <div className="dept-count-badge">
+              {departments.length} Units Analyzed
+            </div>
+          </div>
+
+          <div className="dept-charts-row">
+            {/* Chart 1: Students & Faculty Comparison */}
+            <div className="dept-chart-box">
+              <div className="dept-chart-title">Students & Faculty by Department</div>
+              <div className="dept-chart-desc">
+                Comparison of enrolled student headcounts versus assigned teaching staff
+              </div>
+              <div style={{ width: "100%", height: 240 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="code" stroke="#64748b" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#0c1424",
+                        border: "1px solid rgba(148,163,184,0.2)",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        color: "#f1f5f9",
+                      }}
+                      cursor={{ fill: "rgba(255,255,255,0.03)" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
+                    <Bar dataKey="students" name="Students" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="faculty" name="Faculty" fill="#818cf8" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="subjects" name="Subjects" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Chart 2: Student Enrollment Proportion */}
+            <div className="dept-chart-box">
+              <div className="dept-chart-title">Campus Share Distribution</div>
+              <div className="dept-chart-desc">
+                {totalStudents > 0 ? "Proportional student enrollment distribution" : "Faculty allocation by department"}
+              </div>
+              <div style={{ width: "100%", height: 240 }}>
+                {hasPieData ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieChartData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={4}
+                      >
+                        {pieChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          background: "#0c1424",
+                          border: "1px solid rgba(148,163,184,0.2)",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          color: "#f1f5f9",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: "11px" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="p-8 text-center text-slate-500 text-xs flex items-center justify-center h-full">
+                    No enrollment distribution data available.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── 8. ERROR STATE ────────────────────────────────────────────────── */}
+      {error && (
+        <div className="dept-error-card" role="alert">
+          <div className="dept-error-left">
+            <AlertTriangle size={24} color="#f87171" />
+            <div>
+              <div className="dept-error-title">Database Communication Error</div>
+              <div className="dept-error-msg">{error}</div>
+            </div>
+          </div>
+          <button onClick={() => fetchDepartments()} className="dept-secondary-btn">
+            Retry Connection
+          </button>
+        </div>
+      )}
+
+      {/* ── 4. DEPARTMENT CARDS (Main Content Grid) ───────────────────────── */}
+      {loading ? (
+        <div className="dept-cards-grid">
+          <div className="dept-skeleton dept-skeleton-card" />
+          <div className="dept-skeleton dept-skeleton-card" />
+          <div className="dept-skeleton dept-skeleton-card" />
+          <div className="dept-skeleton dept-skeleton-card" />
+          <div className="dept-skeleton dept-skeleton-card" />
+          <div className="dept-skeleton dept-skeleton-card" />
+        </div>
+      ) : departments.length === 0 ? (
+        /* Empty State */
+        <div className="dept-empty-card">
+          <div className="dept-empty-icon-wrap">
+            <Building2 size={32} />
+          </div>
+          <h3 className="dept-empty-title">No Departments Found</h3>
+          <p className="dept-empty-sub">
+            {searchQuery || statusFilter !== "all"
+              ? "No departments match your current filter criteria. Try clearing search filters."
+              : "No academic departments have been configured yet. Create your first department to start assigning faculty and students."}
+          </p>
+          <div className="flex items-center gap-3 mt-2">
+            {searchQuery || statusFilter !== "all" ? (
+              <button onClick={handleClearFilters} className="dept-secondary-btn">
+                Clear Filters
+              </button>
+            ) : (
+              isAdmin && (
+                <button onClick={openAddModal} className="dept-primary-btn">
+                  <Plus size={16} />
+                  <span>Create First Department</span>
                 </button>
+              )
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Department Cards Grid */
+        <section className="dept-cards-grid" aria-label="Department Listing">
+          {departments.map((dept) => {
+            const studentCount = dept.student_count || 0;
+            const facultyCount = dept.faculty_count || 0;
+            const subjectCount = dept.subject_count || 0;
 
-                <div className="flex items-center gap-2">
+            // Real derived metrics
+            const enrollmentShare =
+              totalStudents > 0 ? ((studentCount / totalStudents) * 100).toFixed(1) : "0.0";
+            const studentFacultyRatio =
+              facultyCount > 0 ? (studentCount / facultyCount).toFixed(1) : studentCount > 0 ? studentCount : "—";
+
+            return (
+              <article
+                key={dept.id}
+                className={`dept-card ${!dept.is_active ? "inactive" : ""}`}
+                id={`dept-card-${dept.id}`}
+              >
+                <div>
+                  {/* Card Header */}
+                  <div className="dept-card-header">
+                    <div className="dept-card-brand">
+                      <span className="dept-code-badge" title="Department Code">
+                        {dept.department_code}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`dept-status-pill ${dept.is_active ? "active" : "inactive"}`}
+                      title={dept.is_active ? "Active Department" : "Inactive Department"}
+                    >
+                      <span className="dept-status-dot" />
+                      {dept.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+
+                  <h3 className="dept-card-title">{dept.department_name}</h3>
+
+                  {/* Description */}
+                  <p className="dept-card-desc" title={dept.description || "No description provided."}>
+                    {dept.description || "No specific department description provided."}
+                  </p>
+
+                  {/* Head of Department Row */}
+                  <div className="dept-hod-row">
+                    <UserRound size={14} className="dept-hod-icon" />
+                    {dept.head_of_department ? (
+                      <span className="dept-hod-name" title={dept.head_of_department.email}>
+                        <span className="dept-hod-label">HOD:</span>
+                        {dept.head_of_department.first_name} {dept.head_of_department.last_name}
+                      </span>
+                    ) : (
+                      <span className="dept-hod-none">
+                        <span className="dept-hod-label">HOD:</span>
+                        Not Assigned
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 3-Column Metrics Box */}
+                  <div className="dept-metrics-box">
+                    <div className="dept-metric-item">
+                      <div className="dept-metric-label">Students</div>
+                      <div className="dept-metric-val">{studentCount}</div>
+                    </div>
+                    <div className="dept-metric-item">
+                      <div className="dept-metric-label">Faculty</div>
+                      <div className="dept-metric-val">{facultyCount}</div>
+                    </div>
+                    <div className="dept-metric-item">
+                      <div className="dept-metric-label">Subjects</div>
+                      <div className="dept-metric-val">{subjectCount}</div>
+                    </div>
+                  </div>
+
+                  {/* Real Data Distribution Bar */}
+                  <div className="dept-distribution-bar-wrap">
+                    <div className="dept-distribution-info">
+                      <span className="dept-distribution-label">
+                        {totalStudents > 0 ? "Campus Enrollment Share" : "Faculty-Student Ratio"}
+                      </span>
+                      <span className="dept-distribution-val">
+                        {totalStudents > 0 ? `${enrollmentShare}%` : `${studentFacultyRatio} : 1`}
+                      </span>
+                    </div>
+                    <div className="dept-progress-track">
+                      <div
+                        className="dept-progress-fill"
+                        style={{
+                          width: `${Math.min(
+                            totalStudents > 0 ? Number(enrollmentShare) || 5 : studentCount > 0 ? 50 : 8,
+                            100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Footer */}
+                <div className="dept-card-footer">
+                  <button
+                    onClick={() => openAnalytics(dept)}
+                    className="dept-analytics-btn"
+                    title="View Analytics & Risk Dashboard"
+                  >
+                    <BarChart2 size={14} />
+                    <span>View Analytics</span>
+                  </button>
+
                   {isAdmin && (
-                    <>
+                    <div className="dept-action-icons">
                       <button
                         onClick={() => handleToggleStatus(dept)}
-                        className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition"
+                        className={`dept-icon-btn ${dept.is_active ? "status-active" : "status-inactive"}`}
                         title={dept.is_active ? "Deactivate department" : "Activate department"}
+                        aria-label="Toggle department active status"
                       >
-                        {dept.is_active ? <XCircle className="w-4 h-4 text-amber-400" /> : <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                        {dept.is_active ? <XCircle size={15} /> : <CheckCircle2 size={15} />}
                       </button>
 
                       <button
                         onClick={() => openEditModal(dept)}
-                        className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition"
-                        title="Edit department"
+                        className="dept-icon-btn edit"
+                        title="Edit Department"
+                        aria-label="Edit department"
                       >
-                        <Edit2 className="w-4 h-4 text-indigo-400" />
+                        <Edit2 size={14} />
                       </button>
-                    </>
+
+                      <button
+                        onClick={() => setDeleteDept(dept)}
+                        className="dept-icon-btn delete"
+                        title="Delete or Archive Department"
+                        aria-label="Delete or archive department"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   )}
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              </article>
+            );
+          })}
+        </section>
       )}
 
-      {/* Add Department Modal */}
+      {/* ── 6. ADD DEPARTMENT MODAL ───────────────────────────────────────── */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-indigo-400" />
-                Add New Department
-              </h3>
+        <div
+          className="dept-modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setShowAddModal(false)}
+        >
+          <div className="dept-modal" role="dialog" aria-modal="true" aria-labelledby="add-dept-title">
+            <div className="dept-modal-header">
+              <div className="dept-modal-header-left">
+                <div className="dept-modal-icon-badge">
+                  <Building2 size={20} />
+                </div>
+                <div>
+                  <h3 className="dept-modal-title" id="add-dept-title">Add New Department</h3>
+                  <p className="dept-modal-sub">Create an academic division and link faculty head</p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="dept-modal-close-btn"
+                aria-label="Close modal"
               >
-                <X className="w-5 h-5" />
+                <X size={16} />
               </button>
             </div>
 
             {formError && (
-              <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 text-xs rounded-lg">
-                {formError}
+              <div style={{ padding: "0 24px", paddingTop: "18px" }}>
+                <div className="dept-form-alert">
+                  <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                  <span>{formError}</span>
+                </div>
               </div>
             )}
 
-            <form onSubmit={handleCreateSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Department Code *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. CS"
-                    value={formData.department_code}
-                    onChange={(e) => setFormData({ ...formData, department_code: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 uppercase"
+            <form onSubmit={handleCreateSubmit}>
+              <div className="dept-modal-body">
+                <div className="dept-form-row">
+                  <div className="dept-form-group">
+                    <label htmlFor="add_dept_code">
+                      Department Code <span className="req">*</span>
+                    </label>
+                    <input
+                      id="add_dept_code"
+                      type="text"
+                      required
+                      placeholder="e.g. CS"
+                      value={formData.department_code}
+                      onChange={(e) => setFormData({ ...formData, department_code: e.target.value })}
+                      className="dept-form-input code"
+                      maxLength={30}
+                    />
+                  </div>
+
+                  <div className="dept-form-group">
+                    <label htmlFor="add_dept_name">
+                      Department Name <span className="req">*</span>
+                    </label>
+                    <input
+                      id="add_dept_name"
+                      type="text"
+                      required
+                      placeholder="e.g. Computer Science"
+                      value={formData.department_name}
+                      onChange={(e) => setFormData({ ...formData, department_name: e.target.value })}
+                      className="dept-form-input"
+                      maxLength={100}
+                    />
+                  </div>
+                </div>
+
+                <div className="dept-form-group">
+                  <label htmlFor="add_dept_desc">Department Description</label>
+                  <textarea
+                    id="add_dept_desc"
+                    rows={2}
+                    placeholder="Brief description of department curriculum, goals, or scope..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="dept-form-textarea"
+                    maxLength={255}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Department Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Computer Science"
-                    value={formData.department_name}
-                    onChange={(e) => setFormData({ ...formData, department_name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                  />
+                <div className="dept-form-group">
+                  <label htmlFor="add_dept_hod">Head of Department (HOD)</label>
+                  <select
+                    id="add_dept_hod"
+                    value={formData.head_of_department_id}
+                    onChange={(e) => setFormData({ ...formData, head_of_department_id: e.target.value })}
+                    className="dept-form-select"
+                  >
+                    <option value="">-- Select Faculty HOD (Optional) --</option>
+                    {facultyList.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.first_name} {f.last_name} ({f.faculty_id})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Description
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Brief summary of department scope..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Head of Department (HOD)
-                </label>
-                <select
-                  value={formData.head_of_department_id}
-                  onChange={(e) => setFormData({ ...formData, head_of_department_id: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">-- Select Faculty HOD (Optional) --</option>
-                  {facultyList.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.first_name} {f.last_name} ({f.faculty_id})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="add_active"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-0"
-                />
-                <label htmlFor="add_active" className="text-xs text-slate-300 cursor-pointer">
-                  Activate department immediately
+                <label className="dept-toggle-row">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="dept-toggle-input"
+                  />
+                  <div>
+                    <div className="dept-toggle-text">Active Status</div>
+                    <div className="dept-toggle-desc">
+                      Department will immediately accept course registrations and faculty assignments
+                    </div>
+                  </div>
                 </label>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+              <div className="dept-modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition"
+                  className="dept-secondary-btn"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+                  className="dept-primary-btn"
                 >
                   {submitting ? "Creating..." : "Create Department"}
                 </button>
@@ -514,113 +933,134 @@ export default function DepartmentsPage() {
         </div>
       )}
 
-      {/* Edit Department Modal */}
-      {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <Edit2 className="w-5 h-5 text-indigo-400" />
-                Edit Department
-              </h3>
+      {/* ── 6. EDIT DEPARTMENT MODAL ──────────────────────────────────────── */}
+      {showEditModal && selectedDept && (
+        <div
+          className="dept-modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setShowEditModal(false)}
+        >
+          <div className="dept-modal" role="dialog" aria-modal="true" aria-labelledby="edit-dept-title">
+            <div className="dept-modal-header">
+              <div className="dept-modal-header-left">
+                <div className="dept-modal-icon-badge">
+                  <Edit2 size={20} />
+                </div>
+                <div>
+                  <h3 className="dept-modal-title" id="edit-dept-title">Edit Department</h3>
+                  <p className="dept-modal-sub">
+                    Update details for {selectedDept.department_name} ({selectedDept.department_code})
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="dept-modal-close-btn"
+                aria-label="Close modal"
               >
-                <X className="w-5 h-5" />
+                <X size={16} />
               </button>
             </div>
 
             {formError && (
-              <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 text-xs rounded-lg">
-                {formError}
+              <div style={{ padding: "0 24px", paddingTop: "18px" }}>
+                <div className="dept-form-alert">
+                  <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                  <span>{formError}</span>
+                </div>
               </div>
             )}
 
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Department Code *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.department_code}
-                    onChange={(e) => setFormData({ ...formData, department_code: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 uppercase"
+            <form onSubmit={handleEditSubmit}>
+              <div className="dept-modal-body">
+                <div className="dept-form-row">
+                  <div className="dept-form-group">
+                    <label htmlFor="edit_dept_code">
+                      Department Code <span className="req">*</span>
+                    </label>
+                    <input
+                      id="edit_dept_code"
+                      type="text"
+                      required
+                      value={formData.department_code}
+                      onChange={(e) => setFormData({ ...formData, department_code: e.target.value })}
+                      className="dept-form-input code"
+                      maxLength={30}
+                    />
+                  </div>
+
+                  <div className="dept-form-group">
+                    <label htmlFor="edit_dept_name">
+                      Department Name <span className="req">*</span>
+                    </label>
+                    <input
+                      id="edit_dept_name"
+                      type="text"
+                      required
+                      value={formData.department_name}
+                      onChange={(e) => setFormData({ ...formData, department_name: e.target.value })}
+                      className="dept-form-input"
+                      maxLength={100}
+                    />
+                  </div>
+                </div>
+
+                <div className="dept-form-group">
+                  <label htmlFor="edit_dept_desc">Department Description</label>
+                  <textarea
+                    id="edit_dept_desc"
+                    rows={2}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="dept-form-textarea"
+                    maxLength={255}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Department Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.department_name}
-                    onChange={(e) => setFormData({ ...formData, department_name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                  />
+                <div className="dept-form-group">
+                  <label htmlFor="edit_dept_hod">Head of Department (HOD)</label>
+                  <select
+                    id="edit_dept_hod"
+                    value={formData.head_of_department_id}
+                    onChange={(e) => setFormData({ ...formData, head_of_department_id: e.target.value })}
+                    className="dept-form-select"
+                  >
+                    <option value="">-- No Head Assigned --</option>
+                    {facultyList.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.first_name} {f.last_name} ({f.faculty_id})
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Description
-                </label>
-                <textarea
-                  rows={2}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Head of Department (HOD)
-                </label>
-                <select
-                  value={formData.head_of_department_id}
-                  onChange={(e) => setFormData({ ...formData, head_of_department_id: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="">-- No Head Assigned --</option>
-                  {facultyList.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.first_name} {f.last_name} ({f.faculty_id})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="edit_active"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-0"
-                />
-                <label htmlFor="edit_active" className="text-xs text-slate-300 cursor-pointer">
-                  Department is active
+                <label className="dept-toggle-row">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="dept-toggle-input"
+                  />
+                  <div>
+                    <div className="dept-toggle-text">Active Department</div>
+                    <div className="dept-toggle-desc">
+                      Controls visibility in student admissions and subject allocation
+                    </div>
+                  </div>
                 </label>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+              <div className="dept-modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition"
+                  className="dept-secondary-btn"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+                  className="dept-primary-btn"
                 >
                   {submitting ? "Saving..." : "Save Changes"}
                 </button>
@@ -630,81 +1070,246 @@ export default function DepartmentsPage() {
         </div>
       )}
 
-      {/* Analytics Modal / Drawer */}
+      {/* ── 7. DEPARTMENT DETAILS & ANALYTICS MODAL / DRAWER ──────────────── */}
       {analyticsDept && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                  <BarChart2 className="w-5 h-5 text-indigo-400" />
-                  {analyticsDept.department_name} ({analyticsDept.department_code}) Analytics
-                </h3>
-                <p className="text-xs text-slate-400 mt-1">Real-time department statistics & risk breakdown</p>
+        <div
+          className="dept-modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setAnalyticsDept(null)}
+        >
+          <div
+            className="dept-analytics-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="analytics-modal-title"
+          >
+            <div className="dept-analytics-modal-header">
+              <div className="flex items-center gap-3">
+                <div className="dept-modal-icon-badge">
+                  <BarChart2 size={20} />
+                </div>
+                <div>
+                  <h3 className="dept-modal-title" id="analytics-modal-title">
+                    {analyticsDept.department_name} ({analyticsDept.department_code})
+                  </h3>
+                  <p className="dept-modal-sub">
+                    Real-time academic performance & predictive risk classification
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setAnalyticsDept(null)}
-                className="text-slate-400 hover:text-slate-200"
+                className="dept-modal-close-btn"
+                aria-label="Close analytics drawer"
               >
-                <X className="w-5 h-5" />
+                <X size={16} />
               </button>
             </div>
 
-            {analyticsLoading ? (
-              <div className="p-8 text-center text-slate-400">Loading department statistics...</div>
-            ) : analyticsData ? (
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <span className="text-xs text-slate-400 block">Total Students</span>
-                    <span className="text-xl font-bold text-slate-100">{analyticsData.total_students}</span>
+            <div className="dept-analytics-modal-body">
+              {analyticsLoading ? (
+                <div style={{ padding: "48px 0", textAlign: "center", color: "var(--text-muted)" }}>
+                  <div className="dept-refresh-btn spinning mx-auto mb-3" style={{ margin: "0 auto" }}>
+                    <RefreshCw size={20} />
                   </div>
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <span className="text-xs text-slate-400 block">Faculty Members</span>
-                    <span className="text-xl font-bold text-slate-100">{analyticsData.total_faculty}</span>
-                  </div>
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <span className="text-xs text-slate-400 block">Avg Attendance</span>
-                    <span className={`text-xl font-bold ${analyticsData.average_attendance >= 75 ? "text-emerald-400" : "text-amber-400"}`}>
-                      {analyticsData.average_attendance}%
-                    </span>
-                  </div>
-                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <span className="text-xs text-slate-400 block">Avg Academic Score</span>
-                    <span className="text-xl font-bold text-indigo-400">{analyticsData.average_marks}%</span>
-                  </div>
+                  <span>Loading department performance data...</span>
                 </div>
-
-                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-3">
-                  <h4 className="text-sm font-semibold text-slate-200">Academic Risk Classification Breakdown</h4>
-                  <div className="grid grid-cols-3 gap-3 pt-2">
-                    <div className="bg-red-950/40 border border-red-900/60 p-3 rounded-lg text-center">
-                      <span className="text-xs text-red-400 font-medium block">HIGH RISK</span>
-                      <span className="text-xl font-bold text-red-300 mt-1 block">
-                        {analyticsData.risk_distribution?.high_risk || 0}
-                      </span>
+              ) : analyticsData ? (
+                <>
+                  {/* KPI Grid */}
+                  <div className="dept-analytics-kpi-grid">
+                    <div className="dept-kpi-card">
+                      <div className="dept-kpi-label">Total Students</div>
+                      <div className="dept-kpi-value">{analyticsData.total_students}</div>
                     </div>
-
-                    <div className="bg-amber-950/40 border border-amber-900/60 p-3 rounded-lg text-center">
-                      <span className="text-xs text-amber-400 font-medium block">MEDIUM RISK</span>
-                      <span className="text-xl font-bold text-amber-300 mt-1 block">
-                        {analyticsData.risk_distribution?.medium_risk || 0}
-                      </span>
+                    <div className="dept-kpi-card">
+                      <div className="dept-kpi-label">Faculty Staff</div>
+                      <div className="dept-kpi-value">{analyticsData.total_faculty}</div>
                     </div>
-
-                    <div className="bg-emerald-950/40 border border-emerald-900/60 p-3 rounded-lg text-center">
-                      <span className="text-xs text-emerald-400 font-medium block">LOW RISK</span>
-                      <span className="text-xl font-bold text-emerald-300 mt-1 block">
-                        {analyticsData.risk_distribution?.low_risk || 0}
-                      </span>
+                    <div className="dept-kpi-card">
+                      <div className="dept-kpi-label">Avg Attendance</div>
+                      <div
+                        className={`dept-kpi-value ${
+                          analyticsData.average_attendance >= 75 ? "green" : "amber"
+                        }`}
+                      >
+                        {analyticsData.average_attendance}%
+                      </div>
+                    </div>
+                    <div className="dept-kpi-card">
+                      <div className="dept-kpi-label">Avg Academic Marks</div>
+                      <div className="dept-kpi-value blue">{analyticsData.average_marks}%</div>
                     </div>
                   </div>
+
+                  {/* Academic Risk Classification Card */}
+                  <div className="dept-risk-breakdown-card">
+                    <div className="dept-risk-header">
+                      <div className="dept-risk-title">
+                        <ShieldAlert size={16} color="#38bdf8" />
+                        <span>AI Academic Risk Classification</span>
+                      </div>
+                      <span className="dept-eyebrow-pill">Predictive Analysis</span>
+                    </div>
+
+                    <div className="dept-risk-grid">
+                      <div className="dept-risk-box high">
+                        <div className="dept-risk-pill">High Academic Risk</div>
+                        <div className="dept-risk-count">
+                          {analyticsData.risk_distribution?.high_risk || 0}
+                        </div>
+                        <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.85 }}>
+                          Attendance &lt; 75% or Failing Marks
+                        </div>
+                      </div>
+
+                      <div className="dept-risk-box medium">
+                        <div className="dept-risk-pill">Medium Risk</div>
+                        <div className="dept-risk-count">
+                          {analyticsData.risk_distribution?.medium_risk || 0}
+                        </div>
+                        <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.85 }}>
+                          Marginal Attendance or Marks
+                        </div>
+                      </div>
+
+                      <div className="dept-risk-box low">
+                        <div className="dept-risk-pill">Good Standing</div>
+                        <div className="dept-risk-count">
+                          {analyticsData.risk_distribution?.low_risk || 0}
+                        </div>
+                        <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.85 }}>
+                          Optimal Attendance &gt;= 75%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Curricular & Structural Overview */}
+                  <div className="dept-chart-box">
+                    <div className="dept-chart-title">Academic Architecture</div>
+                    <div className="dept-chart-desc">
+                      Current curriculum subjects and mentoring faculty allocation
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mt-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                      <div style={{ padding: "12px", background: "#090e1b", borderRadius: "8px" }}>
+                        <span style={{ fontSize: "11px", color: "var(--text-muted)", display: "block" }}>
+                          Configured Subjects
+                        </span>
+                        <strong style={{ fontSize: "18px", color: "var(--text-primary)" }}>
+                          {analyticsData.total_subjects} Modules
+                        </strong>
+                      </div>
+                      <div style={{ padding: "12px", background: "#090e1b", borderRadius: "8px" }}>
+                        <span style={{ fontSize: "11px", color: "var(--text-muted)", display: "block" }}>
+                          Student-Faculty Ratio
+                        </span>
+                        <strong style={{ fontSize: "18px", color: "#38bdf8" }}>
+                          {analyticsData.total_faculty > 0
+                            ? (analyticsData.total_students / analyticsData.total_faculty).toFixed(1)
+                            : analyticsData.total_students}{" "}
+                          : 1
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)" }}>
+                  Failed to load analytics dashboard for this department.
+                </div>
+              )}
+            </div>
+
+            <div className="dept-modal-footer">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = analyticsDept;
+                    setAnalyticsDept(null);
+                    openEditModal(d);
+                  }}
+                  className="dept-secondary-btn"
+                >
+                  <Edit2 size={14} />
+                  <span>Edit Department</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setAnalyticsDept(null)}
+                className="dept-primary-btn"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE / ARCHIVE CONFIRMATION MODAL ───────────────────────────── */}
+      {deleteDept && (
+        <div
+          className="dept-modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setDeleteDept(null)}
+        >
+          <div className="dept-modal" style={{ maxWidth: 460 }} role="dialog" aria-modal="true">
+            <div className="dept-modal-header">
+              <div className="dept-modal-header-left">
+                <div className="dept-modal-icon-badge" style={{ color: "#f87171", background: "rgba(239, 68, 68, 0.12)" }}>
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <h3 className="dept-modal-title">Delete or Archive Department</h3>
+                  <p className="dept-modal-sub">{deleteDept.department_name}</p>
                 </div>
               </div>
-            ) : (
-              <div className="p-6 text-center text-slate-400">Failed to load analytics.</div>
-            )}
+              <button
+                onClick={() => setDeleteDept(null)}
+                className="dept-modal-close-btn"
+                aria-label="Close dialog"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="dept-modal-body">
+              <p style={{ color: "var(--text-secondary)", fontSize: "13.5px", lineHeight: "1.5" }}>
+                Are you sure you want to remove <strong>{deleteDept.department_name}</strong> (
+                <code>{deleteDept.department_code}</code>)?
+              </p>
+              <div style={{ padding: "12px", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "8px", fontSize: "12px", color: "#fbbf24" }}>
+                <strong>Campus Safe Policy:</strong> If active students or faculty are associated with this department, it will be safely deactivated rather than deleted.
+              </div>
+            </div>
+
+            <div className="dept-modal-footer">
+              <button
+                type="button"
+                onClick={() => setDeleteDept(null)}
+                className="dept-secondary-btn"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDeleteDepartment}
+                className="dept-primary-btn"
+                style={{ background: "linear-gradient(135deg, #ef4444, #b91c1c)" }}
+              >
+                {deleting ? "Processing..." : "Confirm Action"}
+              </button>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* ── FLOATING TOAST NOTIFICATION ──────────────────────────────────── */}
+      {toast && (
+        <div className="dept-toast" role="status">
+          <CheckCircle2 size={18} className="dept-toast-icon" />
+          <span>{toast.msg}</span>
         </div>
       )}
     </div>

@@ -6,6 +6,7 @@ import {
   CheckCircle,
   AlertTriangle,
   Database,
+  Users,
   X,
   Eye,
   CloudUpload,
@@ -140,7 +141,7 @@ export default function ETLPage() {
           <div className="cf-eyebrow">DATA ENGINEERING</div>
           <h1 className="cf-page-title">ETL Data Center</h1>
           <p className="cf-page-subtitle">
-            Import attendance and marks data into CampusFlow using CSV or Excel
+            Import student, attendance, and marks data into CampusFlow using CSV or Excel
             files. Drag and drop supported.
           </p>
         </div>
@@ -151,6 +152,19 @@ export default function ETLPage() {
         <div className="etl-left">
           {/* Type selector */}
           <div className="etl-type-row">
+            <button
+              className={`etl-type-btn ${type === "students" ? "active-blue" : ""}`}
+              onClick={() => {
+                setType("students");
+                clearFile();
+              }}
+            >
+              <Users size={20} />
+              <div>
+                <p>Students</p>
+                <span>roll_number, name, email, department…</span>
+              </div>
+            </button>
             <button
               className={`etl-type-btn ${type === "attendance" ? "active-blue" : ""}`}
               onClick={() => {
@@ -193,8 +207,7 @@ export default function ETLPage() {
                 <div>
                   <strong>{file.name}</strong>
                   <span>
-                    {(file.size / 1024).toFixed(1)} KB ·{" "}
-                    {type === "attendance" ? "Attendance" : "Marks"} import
+                    {(file.size / 1024).toFixed(1)} KB · {type} import
                   </span>
                 </div>
                 <button className="etl-clear-btn" onClick={(e) => { e.stopPropagation(); clearFile(); }}>
@@ -265,7 +278,7 @@ export default function ETLPage() {
                 <div>
                   <span>Inserted</span>
                   <strong>
-                    {result.inserted ?? result.records_inserted ?? "—"}
+                    {result.inserted ?? result.records_inserted ?? result.loaded ?? "—"}
                   </strong>
                 </div>
                 <div>
@@ -291,7 +304,7 @@ export default function ETLPage() {
           {/* Format guide */}
           <div className="etl-guide">
             <div className="etl-guide-title">
-              Expected Columns — {type === "attendance" ? "Attendance" : "Marks"}
+              Expected Columns — {type === "attendance" ? "Attendance" : type === "marks" ? "Marks" : "Students"}
             </div>
             {type === "attendance" ? (
               <ul>
@@ -300,7 +313,7 @@ export default function ETLPage() {
                 <li><code>date</code> — YYYY-MM-DD</li>
                 <li><code>status</code> — present / absent</li>
               </ul>
-            ) : (
+            ) : type === "marks" ? (
               <ul>
                 <li><code>student_id</code> — numeric ID</li>
                 <li><code>subject_id</code> — numeric ID</li>
@@ -308,6 +321,15 @@ export default function ETLPage() {
                 <li><code>marks_obtained</code> — number</li>
                 <li><code>max_marks</code> — number</li>
                 <li><code>grade</code> — A / B / C…</li>
+              </ul>
+            ) : (
+              <ul>
+                <li><code>roll_number</code> — unique student roll number</li>
+                <li><code>first_name</code> and <code>last_name</code></li>
+                <li><code>email</code> — unique email address</li>
+                <li><code>department</code> — department name or code</li>
+                <li><code>semester</code> — whole number from 1 to 12</li>
+                <li><code>phone</code> and <code>address</code> — optional</li>
               </ul>
             )}
           </div>

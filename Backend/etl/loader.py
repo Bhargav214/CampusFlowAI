@@ -1,7 +1,10 @@
+import pandas as pd
+
 from sqlalchemy.orm import Session
 
 from models.attendance import Attendance
 from models.marks import Mark
+from models.student import Student
 
 
 def load_attendance(
@@ -102,6 +105,56 @@ def load_marks(
         db.add(marks)
         seen.add(key)
 
+        loaded += 1
+
+    db.commit()
+
+    return {
+        "loaded": loaded,
+        "duplicates": duplicates
+    }
+
+
+def load_students(df, db: Session):
+    existing_roll_numbers = {
+        roll_number.casefold()
+        for (roll_number,) in db.query(Student.roll_number).all()
+    }
+    existing_emails = {
+        email.casefold()
+        for (email,) in db.query(Student.email).all()
+    }
+
+    loaded = 0
+    duplicates = 0
+
+    for _, row in df.iterrows():
+        roll_number = str(row["roll_number"]).strip().upper()
+        email = str(row["email"]).strip().lower()
+
+        if (
+            roll_number.casefold() in existing_roll_numbers
+            or email.casefold() in existing_emails
+        ):
+            duplicates += 1
+            continue
+
+        phone = row.get("phone")
+        address = row.get("address")
+        student = Student(
+            roll_number=roll_number,
+            first_name=str(row["first_name"]).strip(),
+            last_name=str(row["last_name"]).strip(),
+            email=email,
+            department=str(row["department"]).strip(),
+            semester=int(row["semester"]),
+            phone=str(phone).strip() or None if pd.notna(phone) else None,
+            address=str(address).strip() or None if pd.notna(address) else None,
+        )
+
+        db.add(student)
+        existing_roll_numbers.add(roll_number.casefold())
+        existing_emails.add(email.casefold())
         loaded += 1
 
     db.commit()

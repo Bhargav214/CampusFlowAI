@@ -1,0 +1,25 @@
+roll_number,first_name,last_name,email,department,semester
+BCA2026001,Aarav,Mehta,aarav.mehta01@example.edu,BCA,2
+BCA2026002,Diya,Rao,diya.rao02@example.edu,BCA,2
+BCA2026003,Ishaan,Shah,ishaan.shah03@example.edu,BCA,4
+BCA2026004,Anaya,Das,anaya.das04@example.edu,BCA,4
+IT2026001,Kabir,Nair,kabir.nair01@example.edu,Information Technology,2
+IT2026002,Meera,Joshi,meera.joshi02@example.edu,Information Technology,2
+IT2026003,Arjun,Kapoor,arjun.kapoor03@example.edu,Information Technology,4
+IT2026004,Tara,Menon,tara.menon04@example.edu,Information Technology,4
+CS2026001,Reyansh,Patel,reyansh.patel01@example.edu,Computer Science,2
+CS2026002,Myra,Gupta,myra.gupta02@example.edu,Computer Science,2
+CS2026003,Vihaan,Sen,vihaan.sen03@example.edu,Computer Science,4
+CS2026004,Saanvi,Sharma,saanvi.sharma04@example.edu,Computer Science,4
+ECE2026001,Advik,Desai,advik.desai01@example.edu,Electronics & Communication,2
+ECE2026002,Ira,Verma,ira.verma02@example.edu,Electronics & Communication,2
+ECE2026003,Krish,Bose,krish.bose03@example.edu,Electronics & Communication,4
+ECE2026004,Navya,Reddy,navya.reddy04@example.edu,Electronics & Communication,4
+ME2026001,Dev,Chawla,dev.chawla01@example.edu,Mechanical Engineering,2
+ME2026002,Aadhya,Iyer,aadhya.iyer02@example.edu,Mechanical Engineering,2
+ME2026003,Parth,Malik,parth.malik03@example.edu,Mechanical Engineering,4
+ME2026004,Kiara,Sen,kiara.sen04@example.edu,Mechanical Engineering,4
+CE2026001,Rudra,Kulkarni,rudra.kulkarni01@example.edu,Civil Engineering,2
+CE2026002,Siya,Arora,siya.arora02@example.edu,Civil Engineering,2
+CE2026003,Om,Thomas,om.thomas03@example.edu,Civil Engineering,4
+CE2026004,Prisha,Naidu,prisha.naidu04@example.edu,Civil Engineering,4

@@ -13,8 +13,16 @@ CampusFlow AI streamlines institutional workflows, student lifecycle management,
 - **🧠 AI Academic Risk Prediction**: Machine learning pipeline trained on attendance and assessment data to classify academic risk levels (Low, Moderate, High).
 - **📋 Student & Faculty Management**: Complete CRUD operations for students, faculty members, departments, and course subjects.
 - **📅 Attendance & Marks Tracking**: Automated recording, validation, and analytics for course attendance and examination marks.
-- **🔄 ETL Pipeline**: Data ingestion, transformation, and validation pipelines for bulk student and marks processing.
+- **🔄 ETL Pipeline**: Data ingestion, transformation, and validation pipelines for bulk student, attendance, and marks processing.
 - **🎨 Modern Dark UI / UX**: Polished SaaS interface with interactive charts, responsive tables, and 3D campus visualizer.
+
+### Sample Student Import
+
+The ETL Data Center supports CSV imports for student rosters. Upload
+`Backend/sample_students.csv` from the **Students** import option to add its
+24 fictional records across six departments. Existing roll numbers or email
+addresses are skipped; bulk imports create student profiles without login
+accounts.
 
 ---
 

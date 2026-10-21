@@ -18,7 +18,8 @@ from auth.dependencies import require_role
 
 from etl.validator import (
     validate_attendance,
-    validate_marks
+    validate_marks,
+    validate_students,
 )
 
 from etl.transformer import (
@@ -28,7 +29,8 @@ from etl.transformer import (
 
 from etl.loader import (
     load_attendance,
-    load_marks
+    load_marks,
+    load_students,
 )
 
 
@@ -142,6 +144,39 @@ def upload_marks(
 
     return {
         "message": "Marks ETL completed",
+        "filename": file.filename,
+        "records_received": len(df),
+        **result
+    }
+
+
+@router.post(
+    "/students"
+)
+def upload_students(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(
+        require_role("admin", "faculty")
+    )
+):
+    df = read_uploaded_file(file)
+
+    errors = validate_students(df)
+
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Validation failed",
+                "errors": errors
+            }
+        )
+
+    result = load_students(df, db)
+
+    return {
+        "message": "Student ETL completed",
         "filename": file.filename,
         "records_received": len(df),
         **result

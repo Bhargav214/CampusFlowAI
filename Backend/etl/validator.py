@@ -15,6 +15,15 @@ MARKS_COLUMNS = {
     "max_marks"
 }
 
+STUDENT_COLUMNS = {
+    "roll_number",
+    "first_name",
+    "last_name",
+    "email",
+    "department",
+    "semester",
+}
+
 
 def validate_columns(df: pd.DataFrame, required_columns: set):
     missing = required_columns - set(df.columns)
@@ -79,5 +88,46 @@ def validate_marks(df: pd.DataFrame):
 
         if (marks_obtained > max_marks).any():
             errors.append("marks_obtained cannot exceed max_marks")
+
+    return errors
+
+
+def validate_students(df: pd.DataFrame):
+    errors = []
+    valid, column_errors = validate_columns(df, STUDENT_COLUMNS)
+    if not valid:
+        return column_errors
+
+    for column in STUDENT_COLUMNS:
+        if df[column].isnull().any():
+            errors.append(f"Missing values found in {column}")
+
+    for column, max_length in {
+        "roll_number": 30,
+        "first_name": 50,
+        "last_name": 50,
+        "email": 100,
+        "department": 100,
+        "phone": 20,
+        "address": 255,
+    }.items():
+        if column in df.columns and (
+            df[column].dropna().astype(str).str.len() > max_length
+        ).any():
+            errors.append(f"{column} exceeds the maximum length of {max_length}")
+
+    emails = df["email"].dropna().astype(str).str.strip()
+    if (~emails.str.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")).any():
+        errors.append("Invalid email address found")
+
+    semesters = pd.to_numeric(df["semester"], errors="coerce")
+    if semesters.isnull().any() or (semesters % 1 != 0).any():
+        errors.append("semester must contain whole numbers")
+    elif ((semesters < 1) | (semesters > 12)).any():
+        errors.append("semester must be between 1 and 12")
+
+    for column in ("roll_number", "first_name", "last_name", "department"):
+        if (df[column].dropna().astype(str).str.strip() == "").any():
+            errors.append(f"{column} cannot be blank")
 
     return errors
