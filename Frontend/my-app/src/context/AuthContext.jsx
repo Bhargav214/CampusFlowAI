@@ -36,6 +36,9 @@ export function AuthProvider({ children }) {
 
     const login = (userData, token) => {
         localStorage.setItem("campusflow_token", token);
+        if (userData && userData.role) {
+            localStorage.setItem("role", userData.role);
+        }
         setUser(userData);
     };
 

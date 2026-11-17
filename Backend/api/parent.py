@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -144,11 +144,20 @@ def get_student_attendance_for_parent(
     present_count = sum(1 for a in attendance_records if str(a.status).lower() == "present")
     att_pct = round((present_count / total_classes * 100), 2) if total_classes > 0 else 0.0
 
+    # Pre-load subjects once to avoid N+1 queries inside the loop.
+    subject_ids = {a.subject_id for a in attendance_records}
+    subjects_map = {
+        s.id: s for s in db.query(Subject).filter(Subject.id.in_(subject_ids)).all()
+    } if subject_ids else {}
+
+    def _subject_name(subject_id: int) -> str:
+        subj = subjects_map.get(subject_id)
+        return subj.name if subj else f"Subject #{subject_id}"
+
     # Subject-wise attendance
     subject_attendance = {}
     for a in attendance_records:
-        subj = db.query(Subject).filter(Subject.id == a.subject_id).first()
-        subj_name = subj.name if subj else f"Subject #{a.subject_id}"
+        subj_name = _subject_name(a.subject_id)
         if subj_name not in subject_attendance:
             subject_attendance[subj_name] = {"total": 0, "present": 0}
         subject_attendance[subj_name]["total"] += 1
@@ -168,10 +177,9 @@ def get_student_attendance_for_parent(
     # Recent records
     recent_records = []
     for a in sorted(attendance_records, key=lambda x: x.date if hasattr(x, 'date') else datetime.now(), reverse=True)[:10]:
-        subj = db.query(Subject).filter(Subject.id == a.subject_id).first()
         recent_records.append({
             "id": a.id,
-            "subject_name": subj.name if subj else f"Subject #{a.subject_id}",
+            "subject_name": _subject_name(a.subject_id),
             "date": str(a.date),
             "status": a.status,
         })
@@ -211,14 +219,27 @@ def get_student_marks_for_parent(
     total_max = sum(float(m.max_marks or 0) for m in marks_records)
     overall_percentage = round((total_obtained / total_max * 100), 2) if total_max > 0 else 0.0
 
+    # Pre-load subjects once to avoid N+1 queries inside the loop.
+    mark_subject_ids = {m.subject_id for m in marks_records}
+    mark_subjects_map = {
+        s.id: s for s in db.query(Subject).filter(Subject.id.in_(mark_subject_ids)).all()
+    } if mark_subject_ids else {}
+
+    def _mark_subject_name(subject_id: int) -> str:
+        subj = mark_subjects_map.get(subject_id)
+        return subj.name if subj else f"Subject #{subject_id}"
+
+    def _mark_subject_code(subject_id: int) -> str:
+        subj = mark_subjects_map.get(subject_id)
+        return subj.subject_code if subj else "-"
+
     subject_marks = []
     for m in marks_records:
-        subj = db.query(Subject).filter(Subject.id == m.subject_id).first()
         pct = round((float(m.marks_obtained or 0) / float(m.max_marks or 1) * 100), 2)
         subject_marks.append({
             "id": m.id,
-            "subject_name": subj.name if subj else f"Subject #{m.subject_id}",
-            "subject_code": subj.subject_code if subj else "-",
+            "subject_name": _mark_subject_name(m.subject_id),
+            "subject_code": _mark_subject_code(m.subject_id),
             "exam_type": m.exam_type,
             "marks_obtained": float(m.marks_obtained or 0),
             "max_marks": float(m.max_marks or 0),
@@ -338,7 +359,7 @@ def create_parent_account(
 
         if existing_link:
             existing_link.status = "approved"
-            existing_link.approved_at = datetime.utcnow()
+            existing_link.approved_at = datetime.now(timezone.utc)
             existing_link.approved_by = current_user.id
             db.commit()
             link = existing_link
@@ -348,7 +369,7 @@ def create_parent_account(
                 student_id=student.id,
                 relationship_type=data.relationship_type,
                 status="approved",
-                approved_at=datetime.utcnow(),
+                approved_at=datetime.now(timezone.utc),
                 approved_by=current_user.id
             )
             db.add(link)
@@ -389,7 +410,7 @@ def create_parent_link(
 
     if existing_link:
         existing_link.status = "approved"
-        existing_link.approved_at = datetime.utcnow()
+        existing_link.approved_at = datetime.now(timezone.utc)
         existing_link.approved_by = current_user.id
         db.commit()
         return {"message": "Parent link updated to approved", "link_id": existing_link.id}
@@ -399,7 +420,7 @@ def create_parent_link(
         student_id=student.id,
         relationship_type=data.relationship_type,
         status="approved",
-        approved_at=datetime.utcnow(),
+        approved_at=datetime.now(timezone.utc),
         approved_by=current_user.id
     )
     db.add(link)
@@ -446,7 +467,7 @@ def update_parent_link_status(
 
     link.status = data.status
     if data.status == "approved":
-        link.approved_at = datetime.utcnow()
+        link.approved_at = datetime.now(timezone.utc)
         link.approved_by = current_user.id
 
     db.commit()

@@ -28,31 +28,42 @@ router = APIRouter(
 )
 
 
-def _build_department_response(dept: Department, db: Session) -> dict:
-    # Query student count by department_id or matching department string code/name
-    student_count = db.query(Student).filter(
-        or_(
-            Student.department_id == dept.id,
-            func.lower(Student.department) == dept.department_code.lower(),
-            func.lower(Student.department) == dept.department_name.lower()
-        )
-    ).count()
+def _build_department_response(dept: Department, db: Session, counts_cache: dict | None = None) -> dict:
+    counts_cache = counts_cache or {}
+    student_counts = counts_cache.get("students", {})
+    faculty_counts = counts_cache.get("faculty", {})
+    subject_counts = counts_cache.get("subjects", {})
 
-    faculty_count = db.query(Faculty).filter(
-        or_(
-            Faculty.department_id == dept.id,
-            func.lower(Faculty.department) == dept.department_code.lower(),
-            func.lower(Faculty.department) == dept.department_name.lower()
-        )
-    ).count()
+    # Fast path: use pre-computed counts keyed by department_id
+    student_count = student_counts.get(dept.id, 0)
+    faculty_count = faculty_counts.get(dept.id, 0)
+    subject_count = subject_counts.get(dept.id, 0)
 
-    subject_count = db.query(Subject).filter(
-        or_(
-            Subject.department_id == dept.id,
-            func.lower(Subject.department) == dept.department_code.lower(),
-            func.lower(Subject.department) == dept.department_name.lower()
-        )
-    ).count()
+    # Fallback: fuzzy string match for records without a department_id FK.
+    # Only runs when no FK-based count exists, keeping the legacy behaviour.
+    if student_count == 0:
+        student_count = db.query(Student).filter(
+            or_(
+                func.lower(Student.department) == dept.department_code.lower(),
+                func.lower(Student.department) == dept.department_name.lower()
+            )
+        ).count()
+
+    if faculty_count == 0:
+        faculty_count = db.query(Faculty).filter(
+            or_(
+                func.lower(Faculty.department) == dept.department_code.lower(),
+                func.lower(Faculty.department) == dept.department_name.lower()
+            )
+        ).count()
+
+    if subject_count == 0:
+        subject_count = db.query(Subject).filter(
+            or_(
+                func.lower(Subject.department) == dept.department_code.lower(),
+                func.lower(Subject.department) == dept.department_name.lower()
+            )
+        ).count()
 
     head_brief = None
     if dept.head_of_department:
@@ -103,7 +114,37 @@ def list_departments(
         )
 
     departments = query.order_by(Department.department_name.asc()).all()
-    return [_build_department_response(dept, db) for dept in departments]
+
+    # Pre-compute aggregate counts keyed by department_id to avoid N+1 queries.
+    # Single GROUP BY query per table instead of one COUNT per department.
+    student_counts = dict(
+        db.query(Student.department_id, func.count(Student.id))
+        .filter(Student.department_id.isnot(None))
+        .group_by(Student.department_id)
+        .all()
+    )
+    faculty_counts = dict(
+        db.query(Faculty.department_id, func.count(Faculty.id))
+        .filter(Faculty.department_id.isnot(None))
+        .group_by(Faculty.department_id)
+        .all()
+    )
+    subject_counts = dict(
+        db.query(Subject.department_id, func.count(Subject.id))
+        .filter(Subject.department_id.isnot(None))
+        .group_by(Subject.department_id)
+        .all()
+    )
+
+    counts_cache = {
+        "students": student_counts,
+        "faculty": faculty_counts,
+        "subjects": subject_counts,
+    }
+
+    return [
+        _build_department_response(dept, db, counts_cache) for dept in departments
+    ]
 
 
 @router.post("/", response_model=DepartmentResponse, status_code=status.HTTP_201_CREATED)

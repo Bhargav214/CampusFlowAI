@@ -1,15 +1,13 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Search,
-  UserPlus,
   Users,
   Building2,
-  ChevronLeft,
-  ChevronRight,
+  GraduationCap,
+  UserPlus,
+  Trash2,
   X,
   Loader2,
-  Trash2,
 } from "lucide-react";
 
 import {
@@ -17,9 +15,12 @@ import {
   createFaculty,
   deleteFaculty,
 } from "../services/facultyservice";
+import PageHeader from "../components/ui/PageHeader";
+import StatCard from "../components/ui/StatCard";
+import StatusBadge from "../components/ui/StatusBadge";
+import DataTable from "../components/ui/DataTable";
 import "./Pages.css";
 
-/* ── Add Faculty Modal ── */
 const EMPTY_FACULTY = {
   faculty_id: "",
   first_name: "",
@@ -31,31 +32,33 @@ const EMPTY_FACULTY = {
   password: "",
 };
 
+/* ── Add Faculty Modal ── */
 function AddFacultyModal({ onClose, onCreated }) {
   const [form, setForm] = useState(EMPTY_FACULTY);
   const [submitting, setSubmitting] = useState(false);
-  const [alert, setAlert] = useState(null);
+  const [alertMsg, setAlertMsg] = useState(null);
 
-  const set = (field) => (e) =>
+  const setField = (field) => (e) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    setAlert(null);
+    setAlertMsg(null);
 
     try {
       await createFaculty(form);
-      setAlert({ type: "success", msg: "Faculty member added successfully!" });
-      setForm(EMPTY_FACULTY);
-      onCreated();
+      setAlertMsg({ type: "success", text: "Faculty member added successfully!" });
+      setTimeout(() => {
+        onCreated();
+      }, 700);
     } catch (err) {
       const detail =
         err.response?.data?.detail ||
         (Array.isArray(err.response?.data)
           ? err.response.data.map((e) => e.msg).join(", ")
-          : "Failed to add faculty.");
-      setAlert({ type: "error", msg: detail });
+          : "Failed to add faculty member. Check if ID or Email already exists.");
+      setAlertMsg({ type: "error", text: detail });
     } finally {
       setSubmitting(false);
     }
@@ -68,16 +71,18 @@ function AddFacultyModal({ onClose, onCreated }) {
     >
       <div className="cf-modal">
         <div className="cf-modal-header">
-          <h2 className="cf-modal-title">Add New Faculty</h2>
-          <button className="cf-modal-close" onClick={onClose}>
+          <h2 className="cf-modal-title">Add New Faculty Member</h2>
+          <button className="cf-modal-close" onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="cf-modal-body">
-            {alert && (
-              <div className={`cf-form-alert ${alert.type}`}>{alert.msg}</div>
+            {alertMsg && (
+              <div className={`cf-form-alert ${alertMsg.type}`}>
+                {alertMsg.text}
+              </div>
             )}
 
             <div className="cf-form-group">
@@ -86,8 +91,8 @@ function AddFacultyModal({ onClose, onCreated }) {
                 className="cf-form-input"
                 required
                 value={form.faculty_id}
-                onChange={set("faculty_id")}
-                placeholder="e.g. FAC2024001"
+                onChange={setField("faculty_id")}
+                placeholder="e.g. FAC202601"
               />
             </div>
 
@@ -98,7 +103,7 @@ function AddFacultyModal({ onClose, onCreated }) {
                   className="cf-form-input"
                   required
                   value={form.first_name}
-                  onChange={set("first_name")}
+                  onChange={setField("first_name")}
                   placeholder="e.g. Jane"
                 />
               </div>
@@ -108,21 +113,21 @@ function AddFacultyModal({ onClose, onCreated }) {
                   className="cf-form-input"
                   required
                   value={form.last_name}
-                  onChange={set("last_name")}
+                  onChange={setField("last_name")}
                   placeholder="e.g. Smith"
                 />
               </div>
             </div>
 
             <div className="cf-form-group">
-              <label>Email *</label>
+              <label>Email Address *</label>
               <input
                 className="cf-form-input"
                 type="email"
                 required
                 value={form.email}
-                onChange={set("email")}
-                placeholder="faculty@example.com"
+                onChange={setField("email")}
+                placeholder="jane.smith@campus.edu"
               />
             </div>
 
@@ -132,7 +137,7 @@ function AddFacultyModal({ onClose, onCreated }) {
                 <input
                   className="cf-form-input"
                   value={form.department}
-                  onChange={set("department")}
+                  onChange={setField("department")}
                   placeholder="e.g. Computer Science"
                 />
               </div>
@@ -141,19 +146,19 @@ function AddFacultyModal({ onClose, onCreated }) {
                 <input
                   className="cf-form-input"
                   value={form.designation}
-                  onChange={set("designation")}
+                  onChange={setField("designation")}
                   placeholder="e.g. Associate Professor"
                 />
               </div>
             </div>
 
             <div className="cf-form-group">
-              <label>Phone</label>
+              <label>Phone Number</label>
               <input
                 className="cf-form-input"
                 value={form.phone}
-                onChange={set("phone")}
-                placeholder="e.g. 9876543210"
+                onChange={setField("phone")}
+                placeholder="e.g. +1 555-0210"
               />
             </div>
 
@@ -165,8 +170,8 @@ function AddFacultyModal({ onClose, onCreated }) {
                 required
                 minLength={8}
                 value={form.password}
-                onChange={set("password")}
-                placeholder="Min 8 characters"
+                onChange={setField("password")}
+                placeholder="Minimum 8 characters"
               />
             </div>
           </div>
@@ -198,26 +203,23 @@ function AddFacultyModal({ onClose, onCreated }) {
   );
 }
 
-/* ── Faculty Page ── */
-function FacultyPage() {
+export default function FacultyPage() {
   const [faculty, setFaculty] = useState([]);
-  const [search, setSearch] = useState("");
-  const [department, setDepartment] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [showModal, setShowModal] = useState(false);
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const loadFaculty = async () => {
     try {
       setLoading(true);
       setError("");
       const data = await getFaculty();
-      setFaculty(Array.isArray(data) ? data : []);
+      setFaculty(Array.isArray(data) ? data : data?.faculty || data?.data || []);
     } catch (err) {
-      console.error(err);
-      setError(
-        err.response?.data?.detail || "Failed to load faculty"
-      );
+      console.error("Faculty API error:", err);
+      setError("Unable to load faculty records.");
     } finally {
       setLoading(false);
     }
@@ -227,247 +229,228 @@ function FacultyPage() {
     loadFaculty();
   }, []);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this faculty member?")) return;
+  const departments = useMemo(() => {
+    return [
+      ...new Set(
+        faculty
+          .map((f) => f.department)
+          .filter(Boolean)
+      ),
+    ];
+  }, [faculty]);
+
+  const designations = useMemo(() => {
+    return [
+      ...new Set(
+        faculty
+          .map((f) => f.designation)
+          .filter(Boolean)
+      ),
+    ];
+  }, [faculty]);
+
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to remove ${name || "this faculty member"}?`)) {
+      return;
+    }
+
     try {
+      setDeletingId(id);
       await deleteFaculty(id);
-      setFaculty((prev) => prev.filter((m) => m.id !== id));
+      setFaculty((prev) => prev.filter((f) => f.id !== id));
     } catch (err) {
-      console.error(err);
+      alert(err.response?.data?.detail || "Failed to delete faculty member.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
-  const departments = useMemo(() => {
-    return [...new Set(faculty.map((m) => m.department).filter(Boolean))];
-  }, [faculty]);
+  const filteredFaculty = useMemo(() => {
+    if (departmentFilter === "all") return faculty;
+    return faculty.filter((f) => f.department === departmentFilter);
+  }, [faculty, departmentFilter]);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return faculty.filter((m) => {
-      const name = `${m.first_name || ""} ${m.last_name || ""}`.trim();
-      const matchesSearch =
-        name.toLowerCase().includes(q) ||
-        (m.faculty_id || "").toLowerCase().includes(q) ||
-        (m.email || "").toLowerCase().includes(q);
-      const matchesDept =
-        department === "all" || m.department === department;
-      return matchesSearch && matchesDept;
-    });
-  }, [faculty, search, department]);
+  const columns = [
+    {
+      header: "Faculty Member",
+      accessor: "name",
+      render: (_, f) => {
+        const name = `${f.first_name || ""} ${f.last_name || ""}`.trim() || "Faculty";
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "6px",
+                background: "var(--accent-soft)",
+                color: "var(--accent)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: "12px",
+                flexShrink: 0,
+              }}
+            >
+              {name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: "13px" }}>
+                {name}
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                {f.email || "No email"}
+              </div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      header: "Faculty ID",
+      accessor: "faculty_id",
+      cellStyle: { width: "130px" },
+      render: (val) => (
+        <span
+          style={{
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            fontSize: "12px",
+            color: "var(--text-muted)",
+            fontWeight: 600,
+          }}
+        >
+          {val || "—"}
+        </span>
+      ),
+    },
+    {
+      header: "Department",
+      accessor: "department",
+      render: (val) => (
+        <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>
+          {val || "Unassigned"}
+        </span>
+      ),
+    },
+    {
+      header: "Designation",
+      accessor: "designation",
+      render: (val) => (
+        <span style={{ color: "var(--text-secondary)", fontSize: "12px", fontWeight: 500 }}>
+          {val || "Faculty"}
+        </span>
+      ),
+    },
+    {
+      header: "Status",
+      cellStyle: { width: "100px" },
+      render: () => <StatusBadge status="Active" size="sm" />,
+    },
+    {
+      header: "Actions",
+      cellStyle: { width: "80px", textAlign: "right" },
+      render: (_, f) => {
+        const name = `${f.first_name || ""} ${f.last_name || ""}`.trim();
+        return (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <button
+              className="cf-icon-btn"
+              style={{ color: "var(--danger)" }}
+              title="Delete Faculty"
+              disabled={deletingId === f.id}
+              onClick={() => handleDelete(f.id, name)}
+            >
+              {deletingId === f.id ? (
+                <Loader2 size={13} className="cf-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="cf-page">
+      <PageHeader
+        title="Faculty Directory"
+        subtitle="Manage academic staff, department assignments, and professor designations."
+        badge={`${faculty.length} Faculty Members`}
+        actions={
+          <button
+            className="cf-primary-btn"
+            onClick={() => setShowAddModal(true)}
+          >
+            <UserPlus size={15} />
+            <span>Add Faculty</span>
+          </button>
+        }
+      />
 
-      {/* Header */}
-      <div className="cf-page-header">
-        <div>
-          <div className="cf-eyebrow">Campus Management</div>
-          <h1 className="cf-page-title">Faculty</h1>
-          <p className="cf-page-subtitle">
-            Manage faculty records and department assignments
-          </p>
-        </div>
-
-        <button
-          className="cf-primary-btn"
-          onClick={() => setShowModal(true)}
-        >
-          <UserPlus size={17} />
-          Add Faculty
-        </button>
+      {/* KPI Strip */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "16px",
+          marginBottom: "20px",
+        }}
+      >
+        <StatCard
+          label="Total Faculty"
+          value={faculty.length}
+          icon={Users}
+          trend="Teaching staff"
+          variant="default"
+        />
+        <StatCard
+          label="Departments"
+          value={departments.length}
+          icon={Building2}
+          trend="Assigned departments"
+          variant="default"
+        />
+        <StatCard
+          label="Designations"
+          value={designations.length}
+          icon={GraduationCap}
+          trend="Academic ranks"
+          variant="success"
+        />
       </div>
 
-      {/* Stats */}
-      {!loading && !error && (
-        <div className="cf-stat-grid cf-student-stats">
-          <div className="cf-stat">
-            <div className="cf-stat-top">
-              <div className="cf-stat-icon">
-                <Users size={19} />
-              </div>
-              <span className="cf-stat-trend">Active</span>
-            </div>
-            <div className="cf-stat-label">Total Faculty</div>
-            <div className="cf-stat-value">{faculty.length}</div>
-            <div className="cf-stat-description">Faculty members enrolled</div>
-          </div>
+      {/* Directory Table */}
+      <DataTable
+        columns={columns}
+        data={filteredFaculty}
+        isLoading={loading}
+        searchPlaceholder="Search by name, ID, or email..."
+        emptyMessage="No faculty records match the selected filter."
+        filters={
+          <select
+            className="cf-select"
+            value={departmentFilter}
+            onChange={(e) => setDepartmentFilter(e.target.value)}
+          >
+            <option value="all">All Departments</option>
+            {departments.map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </select>
+        }
+      />
 
-          <div className="cf-stat">
-            <div className="cf-stat-top">
-              <div className="cf-stat-icon">
-                <Building2 size={19} />
-              </div>
-            </div>
-            <div className="cf-stat-label">Departments</div>
-            <div className="cf-stat-value">{departments.length}</div>
-            <div className="cf-stat-description">Academic departments</div>
-          </div>
-
-          <div className="cf-stat">
-            <div className="cf-stat-top">
-              <div className="cf-stat-icon">
-                <Search size={19} />
-              </div>
-            </div>
-            <div className="cf-stat-label">Filtered Results</div>
-            <div className="cf-stat-value">{filtered.length}</div>
-            <div className="cf-stat-description">Matching current filters</div>
-          </div>
-        </div>
-      )}
-
-      {/* Toolbar */}
-      <div className="cf-toolbar">
-        <div className="cf-search">
-          <Search size={17} />
-          <input
-            type="text"
-            placeholder="Search by name, ID or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <select
-          className="cf-select"
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-        >
-          <option value="all">All Departments</option>
-          {departments.map((dept) => (
-            <option key={dept} value={dept}>
-              {dept}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="cf-table-card">
-        {loading && (
-          <div className="cf-loading">
-            <div className="cf-spinner" />
-            Loading faculty...
-          </div>
-        )}
-
-        {error && !loading && (
-          <div className="cf-error">{error}</div>
-        )}
-
-        {!loading && !error && (
-          <>
-            <div className="cf-table-header">
-              <h3>Faculty Directory</h3>
-              <p>{filtered.length} faculty found</p>
-            </div>
-
-            <div className="cf-table-wrapper">
-              <table className="cf-table">
-                <thead>
-                  <tr>
-                    <th>Faculty</th>
-                    <th>Faculty ID</th>
-                    <th>Department</th>
-                    <th>Designation</th>
-                    <th>Phone</th>
-                    <th></th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan="6">
-                        <div className="cf-empty">
-                          <Users size={34} />
-                          <p>No faculty found</p>
-                          <span>Try changing your search or filter.</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filtered.map((member) => {
-                      const name =
-                        `${member.first_name || ""} ${member.last_name || ""}`.trim() ||
-                        "Unknown";
-                      return (
-                        <tr key={member.id}>
-                          <td>
-                            <div className="cf-student">
-                              <div className="cf-avatar">
-                                {name.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <div className="cf-student-name">{name}</div>
-                                <div className="cf-student-email">
-                                  {member.email || "No email"}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td>
-                            <span className="cf-roll">
-                              {member.faculty_id || "—"}
-                            </span>
-                          </td>
-
-                          <td>
-                            <span className="cf-department">
-                              {member.department || "—"}
-                            </span>
-                          </td>
-
-                          <td>
-                            <span className="cf-badge cf-badge-blue">
-                              {member.designation || "—"}
-                            </span>
-                          </td>
-
-                          <td>{member.phone || "—"}</td>
-
-                          <td>
-                            <button
-                              className="cf-icon-btn"
-                              title="Delete faculty"
-                              onClick={() => handleDelete(member.id)}
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="cf-table-footer">
-              <span>
-                Showing {filtered.length} of {faculty.length} faculty
-              </span>
-
-              <div className="cf-pagination">
-                <button className="cf-page-btn">
-                  <ChevronLeft size={15} />
-                </button>
-                <button className="cf-page-btn active">1</button>
-                <button className="cf-page-btn">
-                  <ChevronRight size={15} />
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {showModal && (
+      {/* Modal */}
+      {showAddModal && (
         <AddFacultyModal
-          onClose={() => setShowModal(false)}
+          onClose={() => setShowAddModal(false)}
           onCreated={() => {
-            setShowModal(false);
+            setShowAddModal(false);
             loadFaculty();
           }}
         />
@@ -475,5 +458,3 @@ function FacultyPage() {
     </div>
   );
 }
-
-export default FacultyPage;

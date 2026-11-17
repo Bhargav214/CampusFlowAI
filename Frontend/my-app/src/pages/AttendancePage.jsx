@@ -1,18 +1,29 @@
-import { useEffect, useMemo, useState } from "react";
-
+/* eslint-disable react-hooks/set-state-in-effect */
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Search,
   CalendarCheck,
   CheckCircle2,
-  AlertTriangle,
+  XCircle,
+  Users,
+  Check,
+  X,
+  Loader2,
+  Calendar,
+  Save,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 
 import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import PageHeader from "../components/ui/PageHeader";
+import StatCard from "../components/ui/StatCard";
+import StatusBadge from "../components/ui/StatusBadge";
+import DataTable from "../components/ui/DataTable";
 import "./Pages.css";
 
 function normalizeData(data) {
   if (Array.isArray(data)) return data;
-
   return (
     data?.attendance ||
     data?.students ||
@@ -23,407 +34,579 @@ function normalizeData(data) {
   );
 }
 
-function AttendancePage() {
+export default function AttendancePage() {
+  const { user } = useAuth();
+  const isFacultyOrAdmin = user?.role === "admin" || user?.role === "faculty";
+
+  const [activeTab, setActiveTab] = useState(
+    isFacultyOrAdmin ? "roster" : "logs"
+  );
+
   const [records, setRecords] = useState([]);
   const [students, setStudents] = useState([]);
-  const [search, setSearch] = useState("");
-
+  const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  // Roster state
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [selectedSubjectId, setSelectedSubjectId] = useState("");
+  const [rosterStatus, setRosterStatus] = useState({}); // { [studentId]: "Present" | "Absent" }
+  const [savingRoster, setSavingRoster] = useState(false);
+  const [rosterFeedback, setRosterFeedback] = useState(null);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [attendanceRes, studentsRes, subjectsRes] = await Promise.all([
+        api.get("/attendance/"),
+        api.get("/students/"),
+        api.get("/subjects").catch(() => ({ data: [] })),
+      ]);
+
+      const attList = normalizeData(attendanceRes.data);
+      const stdList = normalizeData(studentsRes.data);
+      const subList = Array.isArray(subjectsRes.data) ? subjectsRes.data : [];
+
+      setRecords(attList);
+      setStudents(stdList);
+      setSubjects(subList);
+
+      if (subList.length > 0 && !selectedSubjectId) {
+        setSelectedSubjectId(String(subList[0].id));
+      }
+
+      // Initialize all students as "Present" by default for quick roster marking
+      const initialRoster = {};
+      stdList.forEach((s) => {
+        initialRoster[s.id] = "Present";
+      });
+      setRosterStatus(initialRoster);
+    } catch (err) {
+      console.error("Attendance loading error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        setError("");
-
-        const [attendanceResponse, studentsResponse] =
-          await Promise.all([
-            api.get("/attendance/"),
-            api.get("/students/"),
-          ]);
-
-        setRecords(normalizeData(attendanceResponse.data));
-        setStudents(normalizeData(studentsResponse.data));
-      } catch (err) {
-        console.error("Attendance loading error:", err);
-
-        setError("Unable to load attendance data.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
     loadData();
   }, []);
 
-  // Create student lookup:
-  // student id -> student information
+  // Student and Subject lookup maps
   const studentMap = useMemo(() => {
     const map = {};
-
-    students.forEach((student) => {
-      if (student.id !== undefined) {
-        map[student.id] = student;
-      }
+    students.forEach((s) => {
+      if (s.id !== undefined) map[s.id] = s;
     });
-
     return map;
   }, [students]);
 
-  // Convert backend attendance records
-  // into records with student information.
-  const processedRecords = useMemo(() => {
-    return records.map((record) => {
+  const subjectMap = useMemo(() => {
+    const map = {};
+    subjects.forEach((sub) => {
+      if (sub.id !== undefined) map[sub.id] = sub;
+    });
+    return map;
+  }, [subjects]);
+
+  // Attendance stats
+  const totalLogs = records.length;
+  const presentLogs = records.filter(
+    (r) => String(r.status).toLowerCase() === "present"
+  ).length;
+  const attendanceRate =
+    totalLogs > 0 ? ((presentLogs / totalLogs) * 100).toFixed(1) : "0.0";
+
+  // Roster helpers
+  const handleMarkAll = (status) => {
+    const updated = {};
+    students.forEach((s) => {
+      updated[s.id] = status;
+    });
+    setRosterStatus(updated);
+  };
+
+  const handleToggleStudent = (studentId, status) => {
+    setRosterStatus((prev) => ({
+      ...prev,
+      [studentId]: status,
+    }));
+  };
+
+  // Roster metrics
+  const rosterTotal = students.length;
+  const rosterPresentCount = Object.values(rosterStatus).filter(
+    (st) => st === "Present"
+  ).length;
+  const rosterAbsentCount = rosterTotal - rosterPresentCount;
+  const rosterRate =
+    rosterTotal > 0
+      ? ((rosterPresentCount / rosterTotal) * 100).toFixed(1)
+      : "0.0";
+
+  // Save Roster Attendance Batch (Atomic Bulk Endpoint)
+  const handleSaveRoster = async () => {
+    if (!selectedSubjectId) {
+      setRosterFeedback({
+        type: "error",
+        text: "Please select an academic subject before saving attendance.",
+      });
+      return;
+    }
+
+    if (students.length === 0) {
+      setRosterFeedback({
+        type: "error",
+        text: "No students available in the current roster.",
+      });
+      return;
+    }
+
+    try {
+      setSavingRoster(true);
+      setRosterFeedback(null);
+
+      const recordsPayload = students.map((s) => ({
+        student_id: s.id,
+        subject_id: parseInt(selectedSubjectId, 10),
+        date: selectedDate,
+        status: rosterStatus[s.id] || "Present",
+      }));
+
+      const res = await api.post("/attendance/bulk", { records: recordsPayload });
+
+      const inserted = res.data?.inserted ?? 0;
+      const updated = res.data?.updated ?? 0;
+
+      setRosterFeedback({
+        type: "success",
+        text: `Successfully saved roster attendance! (${inserted} new records, ${updated} updated records).`,
+      });
+
+      // Reload logs in background
+      const logRes = await api.get("/attendance/");
+      setRecords(normalizeData(logRes.data));
+    } catch (err) {
+      setRosterFeedback({
+        type: "error",
+        text: err.response?.data?.detail || "Failed to submit attendance roster.",
+      });
+    } finally {
+      setSavingRoster(false);
+    }
+  };
+
+  // Processed historical records for DataTable
+  const processedLogs = useMemo(() => {
+    return records.map((record, index) => {
       const student = studentMap[record.student_id];
+      const subject = subjectMap[record.subject_id];
 
       const name =
+        `${student?.first_name || ""} ${student?.last_name || ""}`.trim() ||
         student?.name ||
-        student?.full_name ||
-        student?.student_name ||
-        `${student?.first_name || ""} ${
-          student?.last_name || ""
-        }`.trim() ||
-        `Student ${record.student_id}`;
-
-      const roll =
-        student?.roll_no ||
-        student?.roll_number ||
-        student?.rollNo ||
-        "—";
+        `Student #${record.student_id}`;
 
       return {
-        ...record,
+        id: record.id || index,
+        date: record.date || "—",
         studentName: name,
-        rollNumber: roll,
+        rollNumber: student?.roll_number || "—",
+        subjectName: subject?.name || `Course #${record.subject_id}`,
+        status: record.status || "Present",
       };
     });
-  }, [records, studentMap]);
+  }, [records, studentMap, subjectMap]);
 
-  // Search
-  const filteredRecords = useMemo(() => {
-    const query = search.toLowerCase().trim();
-
-    if (!query) return processedRecords;
-
-    return processedRecords.filter((record) => {
-      return (
-        record.studentName.toLowerCase().includes(query) ||
-        String(record.rollNumber)
-          .toLowerCase()
-          .includes(query)
-      );
-    });
-  }, [processedRecords, search]);
-
-  // Calculate attendance percentage
-  // from Present / Absent records.
-  const attendanceByStudent = useMemo(() => {
-    const map = {};
-
-    records.forEach((record) => {
-      const id = record.student_id;
-
-      if (!map[id]) {
-        map[id] = {
-          total: 0,
-          present: 0,
-        };
-      }
-
-      map[id].total += 1;
-
-      const status = String(record.status || "").toLowerCase();
-
-      if (
-        status === "present" ||
-        status === "p" ||
-        status === "attended"
-      ) {
-        map[id].present += 1;
-      }
-    });
-
-    Object.keys(map).forEach((id) => {
-      const item = map[id];
-
-      item.percentage =
-        item.total > 0
-          ? (item.present / item.total) * 100
-          : 0;
-    });
-
-    return map;
-  }, [records]);
-
-  // Overall average attendance
-  const averageAttendance = useMemo(() => {
-    const values = Object.values(attendanceByStudent)
-      .map((item) => item.percentage)
-      .filter((value) => !Number.isNaN(value));
-
-    if (!values.length) return 0;
-
-    return (
-      values.reduce((sum, value) => sum + value, 0) /
-      values.length
-    ).toFixed(2);
-  }, [attendanceByStudent]);
-
-  // Number of students >= 75%
-  const goodAttendance = useMemo(() => {
-    return Object.values(attendanceByStudent).filter(
-      (item) => item.percentage >= 75
-    ).length;
-  }, [attendanceByStudent]);
-
-  // Number of students < 75%
-  const lowAttendance = useMemo(() => {
-    return Object.values(attendanceByStudent).filter(
-      (item) => item.percentage < 75
-    ).length;
-  }, [attendanceByStudent]);
+  // Log Columns
+  const logColumns = [
+    {
+      header: "Date",
+      accessor: "date",
+      cellStyle: { width: "130px" },
+      render: (d) => (
+        <span style={{ fontSize: "12px", color: "var(--text-primary)", fontWeight: 500 }}>
+          {d}
+        </span>
+      ),
+    },
+    {
+      header: "Student",
+      accessor: "studentName",
+      render: (name) => (
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div
+            style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "6px",
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "11px",
+              fontWeight: 700,
+            }}
+          >
+            {name.charAt(0).toUpperCase()}
+          </div>
+          <span style={{ fontWeight: 600, color: "var(--text-primary)", fontSize: "13px" }}>
+            {name}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: "Roll Number",
+      accessor: "rollNumber",
+      cellStyle: { width: "130px" },
+      render: (r) => (
+        <span
+          style={{
+            fontFamily: "ui-monospace, monospace",
+            fontSize: "12px",
+            color: "var(--text-muted)",
+            fontWeight: 600,
+          }}
+        >
+          {r}
+        </span>
+      ),
+    },
+    {
+      header: "Subject / Course",
+      accessor: "subjectName",
+      render: (s) => (
+        <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>
+          {s}
+        </span>
+      ),
+    },
+    {
+      header: "Status",
+      accessor: "status",
+      cellStyle: { width: "120px" },
+      render: (st) => <StatusBadge status={st} size="sm" />,
+    },
+  ];
 
   return (
     <div className="cf-page">
-
-      {/* Header */}
-      <div className="cf-page-header">
-        <div>
-          <div className="cf-eyebrow">
-            Academic Monitoring
-          </div>
-
-          <h1 className="cf-page-title">
-            Attendance
-          </h1>
-
-          <p className="cf-page-subtitle">
-            Monitor student attendance and identify students
-            requiring attention
-          </p>
-        </div>
-      </div>
-
-      {/* Statistics */}
-      <div className="cf-stat-grid">
-
-        {/* Average */}
-        <div className="cf-stat">
-          <div className="cf-stat-top">
-            <div className="cf-stat-icon">
-              <CalendarCheck size={19} />
-            </div>
-          </div>
-
-          <div className="cf-stat-label">
-            Average Attendance
-          </div>
-
-          <div className="cf-stat-value">
-            {averageAttendance}%
-          </div>
-        </div>
-
-        {/* Good */}
-        <div className="cf-stat">
-          <div className="cf-stat-top">
-            <div className="cf-stat-icon">
-              <CheckCircle2 size={19} />
-            </div>
-          </div>
-
-          <div className="cf-stat-label">
-            Good Attendance
-          </div>
-
-          <div className="cf-stat-value">
-            {goodAttendance}
-          </div>
-        </div>
-
-        {/* Low */}
-        <div className="cf-stat">
-          <div className="cf-stat-top">
-            <div
-              className="cf-stat-icon"
-              style={{
-                background: "#fef2f2",
-                color: "#dc2626",
-              }}
+      <PageHeader
+        title="Attendance Center"
+        subtitle="Live class roster check-in, presence monitoring, and searchable historical logs."
+        badge={`${attendanceRate}% Campus Attendance`}
+        actions={
+          <div className="segmented-control" role="tablist">
+            {isFacultyOrAdmin && (
+              <button
+                className={`segmented-btn ${activeTab === "roster" ? "active" : ""}`}
+                onClick={() => setActiveTab("roster")}
+              >
+                <CalendarCheck size={14} />
+                <span>Mark Attendance (Roster)</span>
+              </button>
+            )}
+            <button
+              className={`segmented-btn ${activeTab === "logs" ? "active" : ""}`}
+              onClick={() => setActiveTab("logs")}
             >
-              <AlertTriangle size={19} />
+              <Clock size={14} />
+              <span>Attendance Logs</span>
+            </button>
+          </div>
+        }
+      />
+
+      {/* KPI Overview Strip */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "16px",
+          marginBottom: "20px",
+        }}
+      >
+        <StatCard
+          label="Total Check-Ins"
+          value={totalLogs}
+          icon={CalendarCheck}
+          trend="Historical records"
+          variant="default"
+        />
+        <StatCard
+          label="Attendance Rate"
+          value={`${attendanceRate}%`}
+          icon={CheckCircle2}
+          trend={Number(attendanceRate) >= 75 ? "Optimal (>75%)" : "Needs attention (<75%)"}
+          variant={Number(attendanceRate) >= 75 ? "success" : "warning"}
+        />
+        <StatCard
+          label="Enrolled Students"
+          value={students.length}
+          icon={Users}
+          trend="Eligible for roll call"
+          variant="default"
+        />
+      </div>
+
+      {/* ── TAB 1: MARK ATTENDANCE (FAST ROSTER) ── */}
+      {activeTab === "roster" && isFacultyOrAdmin && (
+        <div className="surface-card" style={{ padding: "20px", marginBottom: "20px" }}>
+          {/* Top Control Bar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "14px",
+              flexWrap: "wrap",
+              paddingBottom: "16px",
+              borderBottom: "1px solid var(--border)",
+              marginBottom: "16px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "4px" }}>
+                  Subject / Course *
+                </label>
+                <select
+                  className="cf-select"
+                  value={selectedSubjectId}
+                  onChange={(e) => setSelectedSubjectId(e.target.value)}
+                  style={{ minWidth: "220px" }}
+                >
+                  {subjects.length === 0 ? (
+                    <option value="">No subjects found</option>
+                  ) : (
+                    subjects.map((sub) => (
+                      <option key={sub.id} value={sub.id}>
+                        {sub.name} ({sub.subject_code || "Code"})
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "4px" }}>
+                  Attendance Date
+                </label>
+                <input
+                  type="date"
+                  className="cf-form-input"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  style={{ height: "36px", padding: "6px 10px" }}
+                />
+              </div>
+            </div>
+
+            {/* Quick Bulk Actions */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => handleMarkAll("Present")}
+                style={{ fontSize: "12px", color: "var(--success)" }}
+              >
+                <Check size={14} />
+                <span>Mark All Present</span>
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => handleMarkAll("Absent")}
+                style={{ fontSize: "12px", color: "var(--danger)" }}
+              >
+                <X size={14} />
+                <span>Mark All Absent</span>
+              </button>
             </div>
           </div>
 
-          <div className="cf-stat-label">
-            Below 75%
-          </div>
+          {/* Feedback alert */}
+          {rosterFeedback && (
+            <div
+              className={`cf-form-alert ${rosterFeedback.type}`}
+              style={{ marginBottom: "16px" }}
+            >
+              {rosterFeedback.text}
+            </div>
+          )}
 
-          <div className="cf-stat-value">
-            {lowAttendance}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Search */}
-      <div className="cf-toolbar">
-        <div className="cf-search">
-          <Search size={17} />
-
-          <input
-            type="text"
-            placeholder="Search student by name or roll number..."
-            value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="cf-table-card">
-
-        {loading && (
-          <div className="cf-loading">
-            Loading attendance records...
-          </div>
-        )}
-
-        {error && !loading && (
-          <div className="cf-error">
-            {error}
-          </div>
-        )}
-
-        {!loading && !error && (
-          <div className="cf-table-wrapper">
-
+          {/* Student Roster List */}
+          <div style={{ overflowX: "auto" }}>
             <table className="cf-table">
-
               <thead>
                 <tr>
-                  <th>Student</th>
-                  <th>Roll No</th>
-                  <th>Subject</th>
-                  <th>Date</th>
-                  <th>Status</th>
+                  <th style={{ width: "60px" }}>#</th>
+                  <th>Roll Number</th>
+                  <th>Student Name</th>
+                  <th>Department</th>
+                  <th style={{ textAlign: "right", width: "200px" }}>Presence Toggle</th>
                 </tr>
               </thead>
-
               <tbody>
-
-                {filteredRecords.length === 0 ? (
+                {students.length === 0 ? (
                   <tr>
-                    <td colSpan="5">
-                      <div className="cf-empty">
-                        <CalendarCheck size={30} />
-
-                        <p>
-                          No attendance records found
-                        </p>
-                      </div>
+                    <td colSpan="5" style={{ textAlign: "center", padding: "32px", color: "var(--text-muted)" }}>
+                      No students enrolled to take attendance.
                     </td>
                   </tr>
                 ) : (
+                  students.map((student, idx) => {
+                    const fullName = `${student.first_name || ""} ${student.last_name || ""}`.trim() || student.name || "Student";
+                    const isPresent = (rosterStatus[student.id] || "Present") === "Present";
 
-                  filteredRecords
-                    .slice(0, 50)
-                    .map((record, index) => {
-
-                      const status = String(
-                        record.status || "Unknown"
-                      );
-
-                      const isPresent =
-                        status.toLowerCase() ===
-                          "present" ||
-                        status.toLowerCase() === "p" ||
-                        status.toLowerCase() ===
-                          "attended";
-
-                      return (
-                        <tr
-                          key={
-                            record.id ||
-                            `${record.student_id}-${record.date}-${index}`
-                          }
-                        >
-
-                          {/* Student */}
-                          <td>
-                            <div className="cf-student">
-
-                              <div className="cf-avatar">
-                                {record.studentName
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </div>
-
-                              <div>
-                                <div className="cf-student-name">
-                                  {record.studentName}
-                                </div>
-                              </div>
-
-                            </div>
-                          </td>
-
-                          {/* Roll number */}
-                          <td>
-                            <strong>
-                              {record.rollNumber}
-                            </strong>
-                          </td>
-
-                          {/* Subject */}
-                          <td>
-                            {record.subject_name ||
-                              record.subject?.name ||
-                              record.subject_id ||
-                              "General"}
-                          </td>
-
-                          {/* Date */}
-                          <td>
-                            {record.date
-                              ? new Date(
-                                  record.date
-                                ).toLocaleDateString()
-                              : "—"}
-                          </td>
-
-                          {/* Status */}
-                          <td>
-                            <span
-                              className={`cf-badge ${
-                                isPresent
-                                  ? "cf-badge-green"
-                                  : "cf-badge-red"
-                              }`}
+                    return (
+                      <tr key={student.id}>
+                        <td style={{ color: "var(--text-muted)", fontSize: "12px" }}>{idx + 1}</td>
+                        <td style={{ fontFamily: "ui-monospace, monospace", fontWeight: 600, fontSize: "12px" }}>
+                          {student.roll_number || "—"}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div
+                              style={{
+                                width: "26px",
+                                height: "26px",
+                                borderRadius: "6px",
+                                background: "var(--accent-soft)",
+                                color: "var(--accent)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                              }}
                             >
-                              {status}
-                            </span>
-                          </td>
-
-                        </tr>
-                      );
-                    })
+                              {fullName.charAt(0).toUpperCase()}
+                            </div>
+                            <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{fullName}</span>
+                          </div>
+                        </td>
+                        <td style={{ color: "var(--text-secondary)", fontSize: "12px" }}>
+                          {student.department || "General"}
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border)",
+                              background: "var(--bg-elevated)",
+                              padding: "2px",
+                              gap: "2px",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStudent(student.id, "Present")}
+                              style={{
+                                border: "none",
+                                borderRadius: "4px",
+                                padding: "4px 10px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                background: isPresent ? "var(--success)" : "transparent",
+                                color: isPresent ? "#FFFFFF" : "var(--text-secondary)",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <Check size={12} />
+                              <span>Present</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStudent(student.id, "Absent")}
+                              style={{
+                                border: "none",
+                                borderRadius: "4px",
+                                padding: "4px 10px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                background: !isPresent ? "var(--danger)" : "transparent",
+                                color: !isPresent ? "#FFFFFF" : "var(--text-secondary)",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <X size={12} />
+                              <span>Absent</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
-
               </tbody>
-
             </table>
-
           </div>
-        )}
 
-      </div>
+          {/* Sticky Bottom Summary Bar */}
+          <div
+            style={{
+              marginTop: "20px",
+              padding: "14px 18px",
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "12px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "13px" }}>
+              <span>
+                Total Roster: <strong style={{ color: "var(--text-primary)" }}>{rosterTotal}</strong>
+              </span>
+              <span style={{ color: "var(--success)" }}>
+                Present: <strong>{rosterPresentCount}</strong>
+              </span>
+              <span style={{ color: "var(--danger)" }}>
+                Absent: <strong>{rosterAbsentCount}</strong>
+              </span>
+              <span>
+                Rate: <strong style={{ color: "var(--text-primary)" }}>{rosterRate}%</strong>
+              </span>
+            </div>
 
+            <button
+              className="cf-submit-btn"
+              disabled={savingRoster || students.length === 0}
+              onClick={handleSaveRoster}
+            >
+              {savingRoster ? <Loader2 size={15} className="cf-spin" /> : <Save size={15} />}
+              <span>{savingRoster ? "Recording..." : "Save Attendance"}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 2: ATTENDANCE LOGS (DATATABLE) ── */}
+      {(activeTab === "logs" || !isFacultyOrAdmin) && (
+        <DataTable
+          columns={logColumns}
+          data={processedLogs}
+          isLoading={loading}
+          searchPlaceholder="Search logs by student name, roll number, or subject..."
+          emptyMessage="No attendance logs recorded yet."
+        />
+      )}
     </div>
   );
 }
-
-export default AttendancePage;

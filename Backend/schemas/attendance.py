@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, date
+from typing import Optional, List, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class AttendanceBase(BaseModel):
     student_id: int
     subject_id: int
-    date: datetime
+    date: Union[datetime, date]
     status: str = Field(..., max_length=20)
     remarks: Optional[str] = Field(default=None, max_length=255)
 
@@ -18,10 +18,22 @@ class AttendanceCreate(AttendanceBase):
     pass
 
 
+class AttendanceBulkItem(BaseModel):
+    student_id: int
+    subject_id: int
+    date: Union[datetime, date]
+    status: str = Field(..., max_length=20)
+    remarks: Optional[str] = Field(default=None, max_length=255)
+
+
+class BulkAttendanceCreate(BaseModel):
+    records: List[AttendanceBulkItem]
+
+
 class AttendanceUpdate(BaseModel):
     student_id: Optional[int] = None
     subject_id: Optional[int] = None
-    date: Optional[datetime] = None
+    date: Optional[Union[datetime, date]] = None
     status: Optional[str] = Field(default=None, max_length=20)
     remarks: Optional[str] = Field(default=None, max_length=255)
 

@@ -41,6 +41,8 @@ import {
 } from "recharts";
 import "./Pages.css";
 import "./DepartmentsPage.css";
+import PageHeader from "../components/ui/PageHeader";
+import StatCard from "../components/ui/StatCard";
 
 // Color palette for charts
 const CHART_COLORS = ["#38BDF8", "#818CF8", "#A855F7", "#10B981", "#F59E0B", "#F43F5E", "#06B6D4"];
@@ -313,113 +315,64 @@ export default function DepartmentsPage() {
   return (
     <div className="dept-page">
       {/* ── 1. PAGE HEADER ────────────────────────────────────────────────── */}
-      <header className="dept-header-wrap">
-        <div className="dept-header-info">
-          <div className="dept-header-icon-box" aria-hidden="true">
-            <Building2 size={28} strokeWidth={2} />
-          </div>
-          <div>
-            <div className="dept-eyebrow">
-              <span>CampusFlow AI</span>
-              <span className="dept-eyebrow-pill">Academic Intelligence</span>
-            </div>
-            <h1 className="dept-title">Department Management</h1>
-            <p className="dept-subtitle">
-              Manage academic departments, faculty assignments, and department-level performance.
-            </p>
-          </div>
-        </div>
-
-        <div className="dept-header-actions">
-          {isAdmin && (
+      <PageHeader
+        title="Department Management"
+        subtitle="Manage academic departments, faculty assignments, and department-level performance."
+        badge={`${totalDepts} Academic Units`}
+        actions={
+          isAdmin && (
             <button
               onClick={openAddModal}
-              className="dept-primary-btn"
+              className="cf-primary-btn"
               id="add-department-btn"
               title="Add New Academic Department"
             >
-              <Plus size={18} strokeWidth={2.5} />
+              <Plus size={16} strokeWidth={2.5} />
               <span>Add Department</span>
             </button>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
 
       {/* ── 2. STATISTICS CARDS (Responsive Horizontal Grid) ─────────────── */}
-      <section className="dept-stats-grid" aria-label="Department Statistics">
-        {loading ? (
-          <>
-            <div className="dept-skeleton dept-skeleton-stat" />
-            <div className="dept-skeleton dept-skeleton-stat" />
-            <div className="dept-skeleton dept-skeleton-stat" />
-            <div className="dept-skeleton dept-skeleton-stat" />
-          </>
-        ) : (
-          <>
-            {/* Card 1: Total Departments */}
-            <div className="dept-stat-card blue">
-              <div className="dept-stat-top">
-                <span className="dept-stat-label">Total Departments</span>
-                <div className="dept-stat-icon-wrap">
-                  <Building2 size={20} strokeWidth={2} />
-                </div>
-              </div>
-              <div className="dept-stat-number">{totalDepts}</div>
-              <div className="dept-stat-subtext">
-                <Sparkles size={12} color="#38bdf8" />
-                <span>Academic faculties in campus</span>
-              </div>
-            </div>
-
-            {/* Card 2: Active Departments */}
-            <div className="dept-stat-card emerald">
-              <div className="dept-stat-top">
-                <span className="dept-stat-label">Active Departments</span>
-                <div className="dept-stat-icon-wrap">
-                  <CheckCircle2 size={20} strokeWidth={2} />
-                </div>
-              </div>
-              <div className="dept-stat-number">{activeDepts}</div>
-              <div className="dept-stat-subtext">
-                <Activity size={12} color="#10b981" />
-                <span>
-                  {totalDepts > 0 ? `${Math.round((activeDepts / totalDepts) * 100)}% operational rate` : "No units registered"}
-                </span>
-              </div>
-            </div>
-
-            {/* Card 3: Total Enrolled Students */}
-            <div className="dept-stat-card violet">
-              <div className="dept-stat-top">
-                <span className="dept-stat-label">Total Enrolled Students</span>
-                <div className="dept-stat-icon-wrap">
-                  <GraduationCap size={20} strokeWidth={2} />
-                </div>
-              </div>
-              <div className="dept-stat-number">{totalStudents}</div>
-              <div className="dept-stat-subtext">
-                <Users size={12} color="#c084fc" />
-                <span>Across all departments</span>
-              </div>
-            </div>
-
-            {/* Card 4: Assigned Faculty */}
-            <div className="dept-stat-card amber">
-              <div className="dept-stat-top">
-                <span className="dept-stat-label">Assigned Faculty</span>
-                <div className="dept-stat-icon-wrap">
-                  <UserRound size={20} strokeWidth={2} />
-                </div>
-              </div>
-              <div className="dept-stat-number">{totalFaculty}</div>
-              <div className="dept-stat-subtext">
-                <BookOpen size={12} color="#fbbf24" />
-                <span>Professors & instructors</span>
-              </div>
-            </div>
-          </>
-        )}
-      </section>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "16px",
+          marginBottom: "12px",
+        }}
+        aria-label="Department Statistics"
+      >
+        <StatCard
+          label="Total Departments"
+          value={totalDepts}
+          icon={Building2}
+          trend="Campus faculties"
+          variant="default"
+        />
+        <StatCard
+          label="Active Departments"
+          value={activeDepts}
+          icon={CheckCircle2}
+          trend={totalDepts > 0 ? `${Math.round((activeDepts / totalDepts) * 100)}% operational` : "No units"}
+          variant="success"
+        />
+        <StatCard
+          label="Total Enrolled Students"
+          value={totalStudents}
+          icon={GraduationCap}
+          trend="Across departments"
+          variant="default"
+        />
+        <StatCard
+          label="Assigned Faculty"
+          value={totalFaculty}
+          icon={UserRound}
+          trend="Teaching staff"
+          variant="warning"
+        />
+      </div>
 
       {/* ── 3. SEARCH AND FILTERS TOOLBAR ─────────────────────────────────── */}
       <section className="dept-toolbar" aria-label="Search and Filter Controls">
@@ -529,13 +482,14 @@ export default function DepartmentsPage() {
                     <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
                     <Tooltip
                       contentStyle={{
-                        background: "#0c1424",
-                        border: "1px solid rgba(148,163,184,0.2)",
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border)",
                         borderRadius: "8px",
                         fontSize: "12px",
-                        color: "#f1f5f9",
+                        color: "var(--text-primary)",
+                        boxShadow: "var(--shadow-md)",
                       }}
-                      cursor={{ fill: "rgba(255,255,255,0.03)" }}
+                      cursor={{ fill: "var(--bg-hover)" }}
                     />
                     <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
                     <Bar dataKey="students" name="Students" fill="#38bdf8" radius={[4, 4, 0, 0]} />
@@ -572,11 +526,12 @@ export default function DepartmentsPage() {
                       </Pie>
                       <Tooltip
                         contentStyle={{
-                          background: "#0c1424",
-                          border: "1px solid rgba(148,163,184,0.2)",
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
                           borderRadius: "8px",
                           fontSize: "12px",
-                          color: "#f1f5f9",
+                          color: "var(--text-primary)",
+                          boxShadow: "var(--shadow-md)",
                         }}
                       />
                       <Legend wrapperStyle={{ fontSize: "11px" }} />

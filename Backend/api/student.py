@@ -7,6 +7,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from database.connection import get_db
+from models.student import Student
 
 from schemas.student import (
     StudentCreate,
@@ -20,14 +21,12 @@ from services.student_service import (
     delete_student
 )
 
-from auth.dependencies import require_role
-
+from auth.dependencies import get_current_user, require_role
 
 router = APIRouter(
     prefix="/students",
     tags=["Students"]
 )
-
 
 @router.post(
     "/",
@@ -59,12 +58,29 @@ def create_student_api(
 )
 def list_students(
     db: Session = Depends(get_db),
-    current_user=Depends(
-        require_role("admin", "faculty")
-    )
+    current_user=Depends(get_current_user)
 ):
 
-    return get_students(db)
+    if current_user.role in ("admin", "faculty"):
+        return get_students(db)
+
+    if current_user.role == "student":
+        student = db.query(Student).filter(
+            Student.user_id == current_user.id
+        ).first()
+
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail="Student profile not found for this account"
+            )
+
+        return [student]
+
+    raise HTTPException(
+        status_code=403,
+        detail="You do not have permission to access this resource"
+    )
 
 
 @router.get(

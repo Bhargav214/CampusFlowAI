@@ -24,7 +24,8 @@ from etl.validator import (
 
 from etl.transformer import (
     transform_attendance,
-    transform_marks
+    transform_marks,
+    transform_students
 )
 
 from etl.loader import (
@@ -106,6 +107,9 @@ def upload_attendance(
         "message": "Attendance ETL completed",
         "filename": file.filename,
         "records_received": len(df),
+        "records_inserted": result.get("loaded", 0),
+        "skipped": result.get("duplicates", 0),
+        "errors": [],
         **result
     }
 
@@ -146,6 +150,9 @@ def upload_marks(
         "message": "Marks ETL completed",
         "filename": file.filename,
         "records_received": len(df),
+        "records_inserted": result.get("loaded", 0),
+        "skipped": result.get("duplicates", 0),
+        "errors": [],
         **result
     }
 
@@ -173,11 +180,16 @@ def upload_students(
             }
         )
 
+    df = transform_students(df)
+
     result = load_students(df, db)
 
     return {
         "message": "Student ETL completed",
         "filename": file.filename,
         "records_received": len(df),
+        "records_inserted": result.get("loaded", 0),
+        "skipped": result.get("duplicates", 0),
+        "errors": [],
         **result
     }

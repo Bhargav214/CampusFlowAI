@@ -1,25 +1,26 @@
 roll_number,first_name,last_name,email,department,semester
-BCA2026001,Aarav,Mehta,aarav.mehta01@example.edu,BCA,2
-BCA2026002,Diya,Rao,diya.rao02@example.edu,BCA,2
-BCA2026003,Ishaan,Shah,ishaan.shah03@example.edu,BCA,4
-BCA2026004,Anaya,Das,anaya.das04@example.edu,BCA,4
-IT2026001,Kabir,Nair,kabir.nair01@example.edu,Information Technology,2
-IT2026002,Meera,Joshi,meera.joshi02@example.edu,Information Technology,2
-IT2026003,Arjun,Kapoor,arjun.kapoor03@example.edu,Information Technology,4
-IT2026004,Tara,Menon,tara.menon04@example.edu,Information Technology,4
-CS2026001,Reyansh,Patel,reyansh.patel01@example.edu,Computer Science,2
-CS2026002,Myra,Gupta,myra.gupta02@example.edu,Computer Science,2
-CS2026003,Vihaan,Sen,vihaan.sen03@example.edu,Computer Science,4
-CS2026004,Saanvi,Sharma,saanvi.sharma04@example.edu,Computer Science,4
-ECE2026001,Advik,Desai,advik.desai01@example.edu,Electronics & Communication,2
-ECE2026002,Ira,Verma,ira.verma02@example.edu,Electronics & Communication,2
-ECE2026003,Krish,Bose,krish.bose03@example.edu,Electronics & Communication,4
-ECE2026004,Navya,Reddy,navya.reddy04@example.edu,Electronics & Communication,4
-ME2026001,Dev,Chawla,dev.chawla01@example.edu,Mechanical Engineering,2
-ME2026002,Aadhya,Iyer,aadhya.iyer02@example.edu,Mechanical Engineering,2
-ME2026003,Parth,Malik,parth.malik03@example.edu,Mechanical Engineering,4
-ME2026004,Kiara,Sen,kiara.sen04@example.edu,Mechanical Engineering,4
-CE2026001,Rudra,Kulkarni,rudra.kulkarni01@example.edu,Civil Engineering,2
-CE2026002,Siya,Arora,siya.arora02@example.edu,Civil Engineering,2
-CE2026003,Om,Thomas,om.thomas03@example.edu,Civil Engineering,4
-CE2026004,Prisha,Naidu,prisha.naidu04@example.edu,Civil Engineering,4
+BCA2026001,Aarav,Sharma,aarav.sharma@campusflow.com,BCA - Computer Applications,6
+BCA2026002,Kiran,Kumar,kiran.kumar@campusflow.com,BCA - Computer Applications,6
+BCA2026003,Nikhil,Gowda,nikhil.gowda@campusflow.com,BCA - Computer Applications,6
+BCA2026004,Deepak,Rao,deepak.rao@campusflow.com,BCA - Computer Applications,6
+BCA2026005,Rohit,Verma,rohit.verma@campusflow.com,BCA - Computer Applications,6
+BCA2026006,Sanjay,Mishra,sanjay.mishra@campusflow.com,BCA - Computer Applications,6
+BCA2026007,Varun,Naidu,varun.naidu@campusflow.com,BCA - Computer Applications,6
+BCA2026008,Pavan,Reddy,pavan.reddy@campusflow.com,BCA - Computer Applications,6
+BCA2026009,Charan,Teja,charan.teja@campusflow.com,BCA - Computer Applications,6
+BCA2026010,Harsha,Vardhan,harsha.vardhan@campusflow.com,BCA - Computer Applications,6
+DS2026001,Tanvi,Shetty,tanvi.shetty@campusflow.com,B.Sc - Data Science,4
+DS2026002,Vaishnavi,Pillai,vaishnavi.pillai@campusflow.com,B.Sc - Data Science,4
+DS2026003,Aishwarya,Menon,aishwarya.menon@campusflow.com,B.Sc - Data Science,4
+DS2026004,Bhavana,Chopra,bhavana.chopra@campusflow.com,B.Sc - Data Science,4
+DS2026005,Harini,Iyer,harini.iyer@campusflow.com,B.Sc - Data Science,4
+COM2026001,Kavya,Madhav,kavya.madhav@campusflow.com,B.Com - Commerce & Finance,2
+COM2026002,Lakshmi,Prasad,lakshmi.prasad@campusflow.com,B.Com - Commerce & Finance,2
+COM2026003,Nandini,Gupta,nandini.gupta@campusflow.com,B.Com - Commerce & Finance,2
+COM2026004,Navya,Ramesh,navya.ramesh@campusflow.com,B.Com - Commerce & Finance,2
+COM2026005,Pallavi,Joshi,pallavi.joshi@campusflow.com,B.Com - Commerce & Finance,2
+BBA2026001,Shreya,Kapoor,shreya.kapoor@campusflow.com,BBA - Aviation & Management,2
+BBA2026002,Sowmya,Rao,sowmya.rao@campusflow.com,BBA - Aviation & Management,2
+BBA2026003,Tejaswini,Nataraj,tejaswini.nataraj@campusflow.com,BBA - Aviation & Management,2
+BBA2026004,Deepika,Kamat,deepika.kamat@campusflow.com,BBA - Aviation & Management,2
+BBA2026005,Ishita,Roy,ishita.roy@campusflow.com,BBA - Aviation & Management,2

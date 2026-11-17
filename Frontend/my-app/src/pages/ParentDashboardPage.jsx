@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -12,7 +12,11 @@ import {
   AlertTriangle,
   Info,
   UserCheck,
+  Sparkles,
 } from "lucide-react";
+import PageHeader from "../components/ui/PageHeader";
+import StatCard from "../components/ui/StatCard";
+import StatusBadge from "../components/ui/StatusBadge";
 import "./Pages.css";
 
 export default function ParentDashboardPage() {
@@ -23,8 +27,8 @@ export default function ParentDashboardPage() {
 
   const [selectedStudentId, setSelectedStudentId] = useState(null);
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState("overview"); // overview, attendance, marks, risk, notifications
+  // Tab State: overview, attendance, marks, notifications
+  const [activeTab, setActiveTab] = useState("overview");
 
   // Student specific detailed data
   const [attendanceData, setAttendanceData] = useState(null);
@@ -100,251 +104,187 @@ export default function ParentDashboardPage() {
     (s) => s.student_id === selectedStudentId
   );
 
-  return (
-    <div className="space-y-6">
-      {/* Header & Student Selector */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800 p-6 rounded-2xl backdrop-blur-sm">
-        <div>
-          <span className="px-2.5 py-1 text-xs font-semibold uppercase bg-indigo-950 text-indigo-300 border border-indigo-800/60 rounded-md">
-            Parent Supervision Portal
-          </span>
-          <h1 className="text-2xl font-bold text-slate-100 mt-2 flex items-center gap-2">
-            <UserCheck className="w-7 h-7 text-indigo-400" />
-            Welcome, Guardian ({user?.email})
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Monitor academic progress, attendance records, and risk assessments for your linked student(s).
-          </p>
-        </div>
+  const unreadNotifs = notifications.filter((n) => !n.is_read).length;
 
-        {dashboardData?.students?.length > 1 && (
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-            <label className="block text-xs font-semibold text-slate-400 mb-1">Select Linked Student:</label>
-            <select
-              value={selectedStudentId || ""}
-              onChange={(e) => setSelectedStudentId(Number(e.target.value))}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 font-medium"
-            >
-              {dashboardData.students.map((s) => (
-                <option key={s.student_id} value={s.student_id}>
-                  {s.first_name} {s.last_name} ({s.roll_number})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+  return (
+    <div className="cf-page">
+      <PageHeader
+        title="Parent Supervision Portal"
+        subtitle={`Welcome, Guardian (${user?.email || "Parent"}). Monitor academic progress, attendance records, and risk intervention alerts for your linked student.`}
+        badge={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Sparkles size={12} /> Guardian Advisory
+          </span>
+        }
+        actions={
+          dashboardData?.students?.length > 1 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>Student:</span>
+              <select
+                className="cf-select"
+                value={selectedStudentId || ""}
+                onChange={(e) => setSelectedStudentId(Number(e.target.value))}
+              >
+                {dashboardData.students.map((s) => (
+                  <option key={s.student_id} value={s.student_id}>
+                    {s.first_name} {s.last_name} ({s.roll_number})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )
+        }
+      />
 
       {loading ? (
-        <div className="p-12 text-center text-slate-400 bg-slate-900/40 border border-slate-800 rounded-xl">
-          Loading parent portal...
-        </div>
+        <div className="cf-loading">Loading student academic telemetry…</div>
       ) : error ? (
-        <div className="p-6 bg-red-950/40 border border-red-800/50 rounded-xl text-red-300 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
+        <div className="cf-form-alert error">{error}</div>
       ) : !dashboardData || dashboardData.students?.length === 0 ? (
-        <div className="p-12 text-center bg-slate-900/40 border border-slate-800 rounded-xl">
-          <Users className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-lg font-semibold text-slate-300">No Approved Student Linked</h3>
-          <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-            Your parent account is active, but an administrator has not yet approved a link to your student's record. Please contact institution administration.
+        <div className="surface-card" style={{ padding: "40px 20px", textAlign: "center" }}>
+          <Users size={36} style={{ margin: "0 auto 12px", color: "var(--text-muted)", opacity: 0.5 }} />
+          <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--text-primary)" }}>
+            No Approved Student Linked Yet
+          </h3>
+          <p style={{ margin: "6px 0 0", fontSize: "13px", color: "var(--text-muted)" }}>
+            Your guardian account is active, but an administrator has not yet authorized a link to your student's record.
           </p>
         </div>
       ) : (
         <>
           {/* Quick Summary Cards */}
           {currentStudent && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-slate-400">Student Profile</span>
-                  <Users className="w-5 h-5 text-indigo-400" />
-                </div>
-                <p className="text-lg font-bold text-slate-100 mt-2">
-                  {currentStudent.first_name} {currentStudent.last_name}
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Roll No: <span className="font-mono text-slate-300">{currentStudent.roll_number}</span> | {currentStudent.department || "General"}
-                </p>
-              </div>
-
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-slate-400">Attendance Rate</span>
-                  <CalendarCheck className="w-5 h-5 text-emerald-400" />
-                </div>
-                <p className={`text-2xl font-bold mt-2 ${currentStudent.attendance_percentage >= 75 ? "text-emerald-400" : "text-amber-400"}`}>
-                  {currentStudent.attendance_percentage}%
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Threshold: <span className="text-slate-300">75% required</span>
-                </p>
-              </div>
-
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-slate-400">Academic Score</span>
-                  <GraduationCap className="w-5 h-5 text-blue-400" />
-                </div>
-                <p className="text-2xl font-bold text-blue-400 mt-2">
-                  {currentStudent.academic_percentage}%
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">Overall marks average</p>
-              </div>
-
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 backdrop-blur-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-slate-400">AI Risk Status</span>
-                  <ShieldAlert className="w-5 h-5 text-purple-400" />
-                </div>
-                <div className="mt-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                      currentStudent.risk_level === "HIGH"
-                        ? "bg-red-950 text-red-300 border border-red-800"
-                        : currentStudent.risk_level === "MEDIUM"
-                        ? "bg-amber-950 text-amber-300 border border-amber-800"
-                        : "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                    }`}
-                  >
-                    {currentStudent.risk_level} RISK
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">Automated model metric</p>
-              </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "16px",
+                marginBottom: "20px",
+              }}
+            >
+              <StatCard
+                label="Linked Student"
+                value={`${currentStudent.first_name} ${currentStudent.last_name}`}
+                icon={Users}
+                trend={`Roll: ${currentStudent.roll_number || "—"}`}
+                variant="default"
+              />
+              <StatCard
+                label="Attendance Rate"
+                value={`${currentStudent.attendance_percentage}%`}
+                icon={CalendarCheck}
+                trend={currentStudent.attendance_percentage >= 75 ? "Target achieved (>75%)" : "Below required 75%"}
+                variant={currentStudent.attendance_percentage >= 75 ? "success" : "warning"}
+              />
+              <StatCard
+                label="Average Marks"
+                value={`${currentStudent.academic_percentage}%`}
+                icon={GraduationCap}
+                trend="Overall examination average"
+                variant="default"
+              />
+              <StatCard
+                label="AI Risk Classification"
+                value={`${currentStudent.risk_level} Risk`}
+                icon={ShieldAlert}
+                trend="Automated evaluation"
+                variant={currentStudent.risk_level === "HIGH" ? "danger" : currentStudent.risk_level === "MEDIUM" ? "warning" : "success"}
+              />
             </div>
           )}
 
           {/* Tab Navigation */}
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
+          <div className="segmented-control" style={{ marginBottom: "20px" }}>
             <button
               onClick={() => setActiveTab("overview")}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition whitespace-nowrap ${
-                activeTab === "overview"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-900/60 text-slate-400 hover:text-slate-200"
-              }`}
+              className={`segmented-btn ${activeTab === "overview" ? "active" : ""}`}
             >
-              Overview & Risk Insights
+              <span>Overview & Risk Insights</span>
             </button>
-
             <button
               onClick={() => setActiveTab("attendance")}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition whitespace-nowrap ${
-                activeTab === "attendance"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-900/60 text-slate-400 hover:text-slate-200"
-              }`}
+              className={`segmented-btn ${activeTab === "attendance" ? "active" : ""}`}
             >
-              Attendance Supervision
+              <span>Attendance Supervision</span>
             </button>
-
             <button
               onClick={() => setActiveTab("marks")}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition whitespace-nowrap ${
-                activeTab === "marks"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-900/60 text-slate-400 hover:text-slate-200"
-              }`}
+              className={`segmented-btn ${activeTab === "marks" ? "active" : ""}`}
             >
-              Academic Marks
+              <span>Academic Marks</span>
             </button>
-
             <button
               onClick={() => setActiveTab("notifications")}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition whitespace-nowrap flex items-center gap-1.5 ${
-                activeTab === "notifications"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-900/60 text-slate-400 hover:text-slate-200"
-              }`}
+              className={`segmented-btn ${activeTab === "notifications" ? "active" : ""}`}
             >
-              <Bell className="w-4 h-4" />
-              Notifications
-              {notifications.filter((n) => !n.is_read).length > 0 && (
-                <span className="px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full font-bold">
-                  {notifications.filter((n) => !n.is_read).length}
-                </span>
-              )}
+              <Bell size={13} />
+              <span>Notifications {unreadNotifs > 0 ? `(${unreadNotifs})` : ""}</span>
             </button>
           </div>
 
-          {/* Tab 1: Overview & Risk Insights */}
+          {/* Tab 1: Overview */}
           {activeTab === "overview" && (
-            <div className="space-y-6">
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               {attendanceData?.warning && (
-                <div className="p-4 bg-amber-950/40 border border-amber-800/60 rounded-xl text-amber-300 flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-400" />
-                  <div>
-                    <h4 className="font-semibold text-sm">Attendance Alert</h4>
-                    <p className="text-xs mt-1 text-amber-300/90">{attendanceData.warning}</p>
-                  </div>
+                <div className="cf-form-alert error">
+                  <AlertTriangle size={15} style={{ display: "inline-block", marginRight: "6px" }} />
+                  <strong>Attendance Alert: </strong>{attendanceData.warning}
                 </div>
               )}
 
               {analyticsData && (
-                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm space-y-5">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                      <ShieldAlert className="w-5 h-5 text-indigo-400" />
-                      Academic Risk & Performance Insights
+                <div className="surface-card" style={{ padding: "20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid var(--border)" }}>
+                    <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "var(--text-primary)" }}>
+                      AI Risk Analysis & Academic Insights
                     </h3>
-                    <span className="text-xs text-slate-500">Analysis Date: {analyticsData.analysis_date}</span>
+                    <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                      Analysis Date: {analyticsData.analysis_date}
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-semibold uppercase text-slate-400">Risk Classification</h4>
-                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
+                    <div>
+                      <span style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>
+                        Risk Status & Factors
+                      </span>
+                      <div style={{ padding: "12px", background: "var(--bg-secondary)", borderRadius: "8px", border: "1px solid var(--border)", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
-                          <span className="text-xs text-slate-400 block">Calculated Risk Score</span>
-                          <span className="text-2xl font-bold text-slate-100 mt-1 block">
+                          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>Calculated Risk Score</span>
+                          <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--text-primary)" }}>
                             {analyticsData.risk_score} / 100
-                          </span>
+                          </div>
                         </div>
-                        <span
-                          className={`px-4 py-1.5 rounded-full text-sm font-bold ${
-                            analyticsData.risk_level === "HIGH"
-                              ? "bg-red-950 text-red-300 border border-red-800"
-                              : analyticsData.risk_level === "MEDIUM"
-                              ? "bg-amber-950 text-amber-300 border border-amber-800"
-                              : "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                          }`}
-                        >
-                          {analyticsData.risk_level} RISK
-                        </span>
+                        <StatusBadge status={analyticsData.risk_level} size="md" />
                       </div>
 
                       {analyticsData.contributing_reasons?.length > 0 ? (
-                        <div className="space-y-2">
-                          <h4 className="text-xs font-semibold text-slate-400">Contributing Factors:</h4>
-                          <ul className="space-y-1.5">
-                            {analyticsData.contributing_reasons.map((reason, idx) => (
-                              <li key={idx} className="text-xs text-slate-300 flex items-center gap-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/40">
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                                {reason}
-                              </li>
-                            ))}
-                          </ul>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          {analyticsData.contributing_reasons.map((reason, idx) => (
+                            <div key={idx} style={{ padding: "8px 10px", background: "var(--bg-elevated)", borderRadius: "6px", fontSize: "12px", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "8px" }}>
+                              <AlertTriangle size={14} color="var(--warning)" />
+                              <span>{reason}</span>
+                            </div>
+                          ))}
                         </div>
                       ) : (
-                        <div className="p-3 bg-emerald-950/30 border border-emerald-900/50 rounded-lg text-xs text-emerald-300 flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          Student is performing within optimal threshold bounds.
+                        <div style={{ padding: "10px", background: "var(--success-soft)", color: "var(--success)", borderRadius: "6px", fontSize: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+                          <CheckCircle2 size={16} />
+                          <span>Student is performing within optimal parameters.</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-semibold uppercase text-slate-400">Recommended Actions for Parents</h4>
-                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                    <div>
+                      <span style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "8px" }}>
+                        Recommended Guidance for Parents
+                      </span>
+                      <div style={{ padding: "14px", background: "var(--bg-secondary)", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "13px", color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: "12px" }}>
                         {analyticsData.suggested_actions}
                       </div>
-
-                      <div className="p-3 bg-slate-950/60 border border-slate-800/60 rounded-xl text-xs text-slate-400 flex items-start gap-2">
-                        <Info className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
-                        <p>{analyticsData.disclaimer}</p>
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                        <Info size={13} style={{ display: "inline-block", marginRight: "4px", verticalAlign: "middle" }} />
+                        {analyticsData.disclaimer}
                       </div>
                     </div>
                   </div>
@@ -355,38 +295,42 @@ export default function ParentDashboardPage() {
 
           {/* Tab 2: Attendance Supervision */}
           {activeTab === "attendance" && attendanceData && (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                  <CalendarCheck className="w-5 h-5 text-emerald-400" />
+            <div className="surface-card" style={{ padding: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid var(--border)" }}>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "var(--text-primary)" }}>
                   Subject-Wise Attendance Supervision
                 </h3>
-                <span className="text-sm font-semibold text-emerald-400">
-                  Overall: {attendanceData.overall_percentage}% ({attendanceData.present_classes}/{attendanceData.total_classes} classes)
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--success)" }}>
+                  Overall: {attendanceData.overall_percentage}% ({attendanceData.present_classes}/{attendanceData.total_classes} lectures)
                 </span>
               </div>
 
               {attendanceData.subject_breakdown?.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6">No attendance records registered yet.</p>
+                <p style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)", fontSize: "13px" }}>
+                  No attendance records recorded yet.
+                </p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
                   {attendanceData.subject_breakdown.map((subj, idx) => (
-                    <div key={idx} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-slate-200">{subj.subject_name}</span>
-                        <span className={`font-bold ${subj.percentage >= 75 ? "text-emerald-400" : "text-amber-400"}`}>
+                    <div key={idx} style={{ padding: "12px 14px", background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: "8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 600, marginBottom: "6px" }}>
+                        <span style={{ color: "var(--text-primary)" }}>{subj.subject_name}</span>
+                        <span style={{ color: subj.percentage >= 75 ? "var(--success)" : "var(--warning)" }}>
                           {subj.percentage}%
                         </span>
                       </div>
-                      <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                      <div style={{ height: "6px", background: "var(--bg-secondary)", borderRadius: "99px", overflow: "hidden", marginBottom: "6px" }}>
                         <div
-                          className={`h-full transition-all duration-500 ${subj.percentage >= 75 ? "bg-emerald-500" : "bg-amber-500"}`}
-                          style={{ width: `${Math.min(subj.percentage, 100)}%` }}
+                          style={{
+                            height: "100%",
+                            width: `${Math.min(subj.percentage, 100)}%`,
+                            background: subj.percentage >= 75 ? "var(--success)" : "var(--warning)",
+                          }}
                         />
                       </div>
-                      <p className="text-xs text-slate-400">
-                        Attended {subj.present_classes} of {subj.total_classes} conducted lectures
-                      </p>
+                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                        Attended {subj.present_classes} of {subj.total_classes} conducted classes
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -394,46 +338,43 @@ export default function ParentDashboardPage() {
             </div>
           )}
 
-          {/* Tab 3: Academic Marks */}
+          {/* Tab 3: Marks */}
           {activeTab === "marks" && marksData && (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5 text-blue-400" />
-                  Academic Assessment Marks
+            <div className="surface-card" style={{ padding: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid var(--border)" }}>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "var(--text-primary)" }}>
+                  Academic Performance & Grade Records
                 </h3>
-                <span className="text-sm font-semibold text-blue-400">
-                  Overall Score: {marksData.overall_percentage}% ({marksData.total_obtained}/{marksData.total_max})
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--accent)" }}>
+                  Cumulative Marks: {marksData.overall_percentage}%
                 </span>
               </div>
 
-              {marksData.records?.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6">No assessment marks uploaded yet.</p>
+              {marksData.subject_marks?.length === 0 ? (
+                <p style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)", fontSize: "13px" }}>
+                  No examination marks recorded yet.
+                </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm text-slate-300">
-                    <thead className="bg-slate-950 text-xs font-semibold uppercase text-slate-400 border-b border-slate-800">
+                <div style={{ overflowX: "auto" }}>
+                  <table className="cf-table">
+                    <thead>
                       <tr>
-                        <th className="px-4 py-3">Subject</th>
-                        <th className="px-4 py-3">Assessment Type</th>
-                        <th className="px-4 py-3">Marks Obtained</th>
-                        <th className="px-4 py-3">Maximum Marks</th>
-                        <th className="px-4 py-3">Percentage</th>
+                        <th>Subject</th>
+                        <th>Exam / Assessment</th>
+                        <th>Marks Obtained</th>
+                        <th>Max Marks</th>
+                        <th style={{ textAlign: "right" }}>Percentage</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800">
-                      {marksData.records.map((m) => (
-                        <tr key={m.id} className="hover:bg-slate-950/40">
-                          <td className="px-4 py-3 font-medium text-slate-200">
-                            {m.subject_name} ({m.subject_code})
-                          </td>
-                          <td className="px-4 py-3">{m.exam_type}</td>
-                          <td className="px-4 py-3 font-bold text-slate-100">{m.marks_obtained}</td>
-                          <td className="px-4 py-3 text-slate-400">{m.max_marks}</td>
-                          <td className="px-4 py-3">
-                            <span className={`font-semibold ${m.percentage >= 60 ? "text-emerald-400" : "text-amber-400"}`}>
-                              {m.percentage}%
-                            </span>
+                    <tbody>
+                      {marksData.subject_marks.map((m, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{m.subject_name}</td>
+                          <td style={{ color: "var(--text-muted)" }}>{m.exam_type}</td>
+                          <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>{m.marks_obtained}</td>
+                          <td style={{ color: "var(--text-muted)" }}>{m.max_marks}</td>
+                          <td style={{ textAlign: "right", fontWeight: 700, color: "var(--accent)" }}>
+                            {m.percentage}%
                           </td>
                         </tr>
                       ))}
@@ -446,44 +387,46 @@ export default function ParentDashboardPage() {
 
           {/* Tab 4: Notifications */}
           {activeTab === "notifications" && (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm space-y-4">
-              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-3">
-                <Bell className="w-5 h-5 text-indigo-400" />
-                Parent Alerts & Notifications
+            <div className="surface-card" style={{ padding: "20px" }}>
+              <h3 style={{ margin: "0 0 16px", fontSize: "15px", fontWeight: 700, color: "var(--text-primary)" }}>
+                Parent Supervision Notifications
               </h3>
 
               {notifications.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6">No notifications received yet.</p>
+                <p style={{ textAlign: "center", padding: "24px", color: "var(--text-muted)", fontSize: "13px" }}>
+                  No notifications recorded.
+                </p>
               ) : (
-                <div className="space-y-3">
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {notifications.map((n) => (
                     <div
                       key={n.id}
-                      className={`p-4 rounded-xl border transition flex items-start justify-between gap-4 ${
-                        n.is_read ? "bg-slate-950/40 border-slate-800/60 opacity-80" : "bg-slate-950 border-indigo-800/80 shadow-md shadow-indigo-950/30"
-                      }`}
+                      style={{
+                        padding: "12px 14px",
+                        background: n.is_read ? "var(--bg-card)" : "var(--bg-secondary)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                      }}
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-100">{n.title}</span>
-                          {!n.is_read && (
-                            <span className="px-2 py-0.5 text-xs bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded-full font-bold">
-                              NEW
-                            </span>
-                          )}
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: n.is_read ? 500 : 700, color: "var(--text-primary)" }}>
+                          {n.message}
                         </div>
-                        <p className="text-xs text-slate-300">{n.message}</p>
-                        <span className="text-[11px] text-slate-500 block">
-                          {new Date(n.created_at).toLocaleString()}
+                        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                          {n.created_at || "Recent notification"}
                         </span>
                       </div>
-
                       {!n.is_read && (
                         <button
+                          className="cf-secondary-btn"
+                          style={{ fontSize: "11px", padding: "3px 8px" }}
                           onClick={() => markNotifRead(n.id)}
-                          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 rounded-lg transition flex-shrink-0"
                         >
-                          Mark as read
+                          Mark Read
                         </button>
                       )}
                     </div>

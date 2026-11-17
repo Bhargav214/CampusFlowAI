@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -7,13 +7,16 @@ import {
   ShieldAlert,
   Sparkles,
   BookOpen,
+  Award,
 } from "lucide-react";
 import api from "../services/api";
+import PageHeader from "../components/ui/PageHeader";
+import StatCard from "../components/ui/StatCard";
+import StatusBadge from "../components/ui/StatusBadge";
 import "./Pages.css";
 
-
 /* ─── SVG arc progress ring ─────────────────────────────────── */
-function ArcRing({ pct, size = 140, color = "#6366f1" }) {
+function ArcRing({ pct, size = 140, color = "var(--accent)" }) {
   const r = (size - 20) / 2;
   const circ = 2 * Math.PI * r;
   const filled = (Math.min(pct, 100) / 100) * circ;
@@ -24,7 +27,7 @@ function ArcRing({ pct, size = 140, color = "#6366f1" }) {
         cy={size / 2}
         r={r}
         fill="none"
-        stroke="rgba(255,255,255,0.06)"
+        stroke="var(--bg-elevated)"
         strokeWidth={10}
       />
       <circle
@@ -44,7 +47,7 @@ function ArcRing({ pct, size = 140, color = "#6366f1" }) {
         y="50%"
         dominantBaseline="middle"
         textAnchor="middle"
-        fill="white"
+        fill="var(--text-primary)"
         fontSize={size * 0.18}
         fontWeight="700"
       >
@@ -68,31 +71,44 @@ function RingCard({ label, value, color, icon: Icon, subtitle }) {
 }
 
 function RiskCard({ risk, reasons = [] }) {
-  const map = {
-    HIGH: { color: "#ef4444", bg: "rgba(239,68,68,0.12)", label: "High Risk" },
-    MEDIUM: {
-      color: "#f59e0b",
-      bg: "rgba(245,158,11,0.12)",
-      label: "Medium Risk",
-    },
-    LOW: {
-      color: "#10b981",
-      bg: "rgba(16,185,129,0.12)",
-      label: "Low Risk",
-    },
-  };
-  const cfg = map[String(risk).toUpperCase()] || map.LOW;
+  const isHigh = String(risk).toUpperCase() === "HIGH";
+  const isMedium = String(risk).toUpperCase() === "MEDIUM" || String(risk).toUpperCase() === "MODERATE";
+
   return (
-    <div className="sa-risk-card" style={{ background: cfg.bg, borderColor: cfg.color + "40" }}>
-      <ShieldAlert size={28} style={{ color: cfg.color }} />
+    <div
+      className="sa-risk-card"
+      style={{
+        background: isHigh
+          ? "var(--danger-soft)"
+          : isMedium
+          ? "var(--warning-soft)"
+          : "var(--success-soft)",
+        borderColor: isHigh
+          ? "rgba(244, 63, 94, 0.3)"
+          : isMedium
+          ? "rgba(245, 158, 11, 0.3)"
+          : "rgba(16, 185, 129, 0.3)",
+      }}
+    >
+      <ShieldAlert
+        size={28}
+        style={{
+          color: isHigh ? "var(--danger)" : isMedium ? "var(--warning)" : "var(--success)",
+        }}
+      />
       <div>
-        <div className="sa-risk-level" style={{ color: cfg.color }}>
-          {cfg.label}
+        <div
+          className="sa-risk-level"
+          style={{
+            color: isHigh ? "var(--danger)" : isMedium ? "var(--warning)" : "var(--success)",
+          }}
+        >
+          {risk || "Low"} Risk Level
         </div>
         <div className="sa-risk-reasons">
           {reasons.length
             ? reasons.join(" · ")
-            : "Keep it up — no major concerns detected."}
+            : "Keep it up — your attendance and exam scores are on track."}
         </div>
       </div>
     </div>
@@ -104,19 +120,21 @@ export default function StudentAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-
   useEffect(() => {
     api
       .get("/analytics/student-dashboard")
       .then((r) => setData(r.data))
-      .catch(() => setError("Unable to load your analytics. Please try again."))
+      .catch((err) => {
+        console.error(err);
+        setError("Unable to retrieve personalized academic analytics.");
+      })
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
     return (
       <div className="cf-page">
-        <div className="cf-loading">Loading your academic snapshot…</div>
+        <div className="cf-loading">Calculating your academic standing…</div>
       </div>
     );
   }
@@ -131,133 +149,118 @@ export default function StudentAnalyticsPage() {
 
   const attendance = Number(data?.average_attendance ?? 0);
   const marks = Number(data?.average_marks ?? 0);
-  const me = data?.risk_students?.[0];
-  const risk = me?.risk ?? "LOW";
-  const reasons = me?.reasons ?? [];
-  const recommendation = me?.recommendation ?? "";
-
-  /* classes needed for 75% */
-  const classesNeeded =
-    attendance < 75
-      ? Math.ceil((75 * (me?.total_classes || 60) - (me?.present || 0)) / 25)
-      : 0;
+  const risk = data?.risk || "LOW";
+  const reasons = data?.reasons || [];
+  const recommendation = data?.recommendation || "";
+  const subjects = data?.subject_performance || [];
 
   return (
     <div className="cf-page">
-      {/* Header */}
-      <div className="cf-page-header">
-        <div>
-          <div className="cf-eyebrow">
-            <Sparkles size={12} style={{ display: "inline", marginRight: 6 }} />
-            MY ACADEMIC SNAPSHOT
-          </div>
-          <h1 className="cf-page-title">My Analytics</h1>
-          <p className="cf-page-subtitle">
-            Your personal attendance, performance, and AI risk assessment — all
-            in one place.
-          </p>
-        </div>
-        {attendance >= 75 ? (
-          <div
-            className="reports-live-badge"
-            style={{ background: "rgba(16,185,129,0.12)", color: "#10b981" }}
-          >
-            <TrendingUp size={14} />
-            On Track
-          </div>
-        ) : (
-          <div
-            className="reports-live-badge"
-            style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}
-          >
-            <TrendingDown size={14} />
-            Needs Attention
-          </div>
-        )}
+      <PageHeader
+        title="My Academic Analytics"
+        subtitle="Personalized performance dashboard, attendance compliance, and learning telemetry."
+        badge={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Sparkles size={12} /> Student Portal
+          </span>
+        }
+      />
+
+      {/* KPI Quick Stat Strip */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "16px",
+          marginBottom: "20px",
+        }}
+      >
+        <StatCard
+          label="Attendance Rate"
+          value={`${attendance.toFixed(1)}%`}
+          icon={CalendarCheck}
+          trend={attendance >= 75 ? "Target achieved (>75%)" : "Below required 75%"}
+          variant={attendance >= 75 ? "success" : "warning"}
+        />
+        <StatCard
+          label="Overall Exam Average"
+          value={`${marks.toFixed(1)}%`}
+          icon={GraduationCap}
+          trend="Cumulative score"
+          variant="default"
+        />
+        <StatCard
+          label="Academic Standing"
+          value={risk === "LOW" ? "Good Standing" : `${risk} Risk`}
+          icon={Award}
+          trend="AI classification"
+          variant={risk === "LOW" ? "success" : "danger"}
+        />
       </div>
 
-      {/* Attendance warning */}
-      {attendance < 75 && classesNeeded > 0 && (
-        <div
-          className="reports-banner"
-          style={{
-            background: "rgba(239,68,68,0.08)",
-            borderColor: "rgba(239,68,68,0.25)",
-            color: "#ef4444",
-          }}
-        >
-          <CalendarCheck size={18} />
-          <span>
-            Your attendance is below 75%. You need approximately{" "}
-            <strong>{classesNeeded} more consecutive present days</strong> to
-            meet the minimum requirement.
-          </span>
-        </div>
-      )}
-
-      {/* Ring cards */}
+      {/* Ring Visual Metrics */}
       <div className="sa-rings-row">
         <RingCard
-          label="Attendance"
+          label="Attendance Compliance"
           value={attendance}
-          color="#38bdf8"
+          color="var(--success)"
           icon={CalendarCheck}
-          subtitle={attendance >= 75 ? "✓ Above threshold" : "Below 75% threshold"}
+          subtitle="Minimum 75% attendance mandatory"
         />
         <RingCard
-          label="Academic Score"
+          label="Average Examination Score"
           value={marks}
-          color="#6366f1"
+          color="var(--accent)"
           icon={GraduationCap}
-          subtitle={marks >= 50 ? "✓ Passing" : "Below passing threshold"}
+          subtitle="Across all evaluated semesters"
         />
       </div>
 
-      {/* Risk card */}
+      {/* AI Risk Assessment */}
       <div className="sa-section-title">
-        <ShieldAlert size={17} />
-        AI Risk Assessment
+        <Sparkles size={15} color="var(--accent)" />
+        AI Academic Risk Evaluation
       </div>
       <RiskCard risk={risk} reasons={reasons} />
 
-      {/* Recommendation */}
       {recommendation && (
         <div className="sa-recommendation">
-          <Sparkles size={16} style={{ color: "#6366f1", flexShrink: 0 }} />
+          <BookOpen size={18} style={{ color: "var(--accent)", flexShrink: 0, marginTop: "2px" }} />
           <div>
-            <strong>AI Recommendation</strong>
+            <strong>Personalized Academic Advisory</strong>
             <p>{recommendation}</p>
           </div>
         </div>
       )}
 
-      {/* Subject performance if any */}
-      {(data?.subject_performance ?? []).length > 0 && (
-        <>
-          <div className="sa-section-title">
-            <BookOpen size={17} />
-            Subject Performance
+      {/* Subject Performance Breakdown */}
+      {subjects.length > 0 && (
+        <div className="surface-card" style={{ padding: "20px", marginTop: "20px" }}>
+          <div className="sa-section-title" style={{ marginBottom: "16px" }}>
+            <BookOpen size={15} color="var(--accent)" />
+            Subject-Wise Score Breakdown
           </div>
           <div className="sa-subject-list">
-            {data.subject_performance.map((s, i) => {
-              const pct = Math.min(Number(s.average_marks || 0), 100);
+            {subjects.map((s, i) => {
+              const val = Number(s.average_marks ?? 0);
               return (
                 <div key={i} className="sa-subject-row">
                   <span className="sa-subject-name">{s.subject}</span>
                   <div className="sa-subject-bar-track">
                     <div
                       className="sa-subject-bar-fill"
-                      style={{ width: `${pct}%` }}
+                      style={{
+                        width: `${Math.min(val, 100)}%`,
+                        background: val < 50 ? "var(--danger)" : "var(--accent)",
+                      }}
                     />
                   </div>
-                  <strong className="sa-subject-val">
-                    {pct.toFixed(1)}%
-                  </strong>
+                  <span className="sa-subject-val">{val.toFixed(1)} / 100</span>
                 </div>
               );
             })}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

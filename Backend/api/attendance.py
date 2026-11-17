@@ -13,7 +13,8 @@ from models.student import Student
 
 from schemas.attendance import (
     AttendanceCreate,
-    AttendanceResponse
+    AttendanceResponse,
+    BulkAttendanceCreate
 )
 
 from auth.dependencies import require_role, get_current_user
@@ -72,6 +73,73 @@ def create_attendance(
     db.refresh(attendance)
 
     return attendance
+
+
+@router.post("/bulk")
+def create_attendance_bulk(
+    data: BulkAttendanceCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "faculty"))
+):
+    """
+    Atomic batch upsert for classroom attendance rosters.
+    Updates existing records for the same (student, subject, date) or creates new ones.
+    """
+    if not data.records:
+        return {
+            "status": "success",
+            "message": "No attendance records provided",
+            "inserted": 0,
+            "updated": 0,
+            "total": 0
+        }
+
+    inserted = 0
+    updated = 0
+
+    try:
+        for item in data.records:
+            status_clean = str(item.status).strip().lower()
+            if status_clean not in ("present", "absent"):
+                status_clean = "present"
+
+            existing = db.query(Attendance).filter(
+                Attendance.student_id == item.student_id,
+                Attendance.subject_id == item.subject_id,
+                Attendance.date == item.date
+            ).first()
+
+            if existing:
+                existing.status = status_clean
+                if item.remarks is not None:
+                    existing.remarks = item.remarks
+                updated += 1
+            else:
+                record = Attendance(
+                    student_id=item.student_id,
+                    subject_id=item.subject_id,
+                    date=item.date,
+                    status=status_clean,
+                    remarks=item.remarks
+                )
+                db.add(record)
+                inserted += 1
+
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch attendance processing failed: {exc}"
+        )
+
+    return {
+        "status": "success",
+        "message": f"Successfully processed {len(data.records)} attendance records ({inserted} inserted, {updated} updated)",
+        "inserted": inserted,
+        "updated": updated,
+        "total": len(data.records)
+    }
 
 
 @router.get(

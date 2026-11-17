@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from models.attendance import Attendance
     
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -35,7 +35,7 @@ class Subject(Base):
     semester: Mapped[int | None] = mapped_column(Integer, nullable=True)
     credit_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     faculty_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("faculty.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     faculty: Mapped["Faculty | None"] = relationship(back_populates="subjects")
     department_rel: Mapped["Department | None"] = relationship("Department", foreign_keys=[department_id])

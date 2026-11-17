@@ -1,104 +1,60 @@
-import {
-    Users,
-    CalendarCheck,
-    GraduationCap,
-    AlertTriangle
-} from "lucide-react";
+import React from "react";
+import { Users, CalendarCheck, GraduationCap, AlertTriangle } from "lucide-react";
+import StatCard from "../ui/StatCard";
 
-
-const cards = [
+export default function StatCards({ data = {} }) {
+  const cards = [
     {
-        title: "Total Students",
-        key: "students",
-        icon: Users
+      label: "Total Students",
+      value: data.students ?? data.total_students ?? 0,
+      icon: Users,
+      trend: "Enrolled",
+      variant: "default",
     },
     {
-        title: "Average Attendance",
-        key: "attendance",
-        icon: CalendarCheck
+      label: "Average Attendance",
+      value: typeof (data.attendance ?? data.average_attendance) === "number"
+        ? `${(data.attendance ?? data.average_attendance)}%`
+        : (data.attendance ?? data.average_attendance ?? "0%"),
+      icon: CalendarCheck,
+      trend: "Campus-wide",
+      variant: "success",
     },
     {
-        title: "Average Marks",
-        key: "marks",
-        icon: GraduationCap
+      label: "Average Marks",
+      value: data.marks ?? data.average_marks ?? 0,
+      icon: GraduationCap,
+      trend: "Performance",
+      variant: "default",
     },
     {
-        title: "High Risk Students",
-        key: "risk",
-        icon: AlertTriangle
-    }
-];
+      label: "High Risk Students",
+      value: data.risk ?? data.high_risk ?? 0,
+      icon: AlertTriangle,
+      trend: "Action needed",
+      variant: "danger",
+    },
+  ];
 
-
-export default function StatCards({ data }) {
-
-    return (
-
-        <div className="
-            grid
-            grid-cols-1
-            gap-4
-            sm:grid-cols-2
-            lg:grid-cols-4
-        ">
-
-            {cards.map((card) => {
-
-                const Icon = card.icon;
-
-                return (
-
-                    <div
-                        key={card.key}
-                        className="
-                            rounded-2xl
-                            border
-                            border-slate-200
-                            bg-white
-                            p-5
-                            shadow-sm
-                            transition
-                            hover:-translate-y-1
-                            hover:shadow-lg
-                        "
-                    >
-
-                        <div className="
-                            flex
-                            items-center
-                            justify-between
-                        ">
-
-                            <p className="
-                                text-sm
-                                text-slate-500
-                            ">
-                                {card.title}
-                            </p>
-
-                            <Icon
-                                size={20}
-                                className="text-slate-500"
-                            />
-
-                        </div>
-
-
-                        <p className="
-                            mt-4
-                            text-3xl
-                            font-bold
-                            text-slate-900
-                        ">
-                            {data[card.key]}
-                        </p>
-
-                    </div>
-
-                );
-
-            })}
-
-        </div>
-    );
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: "16px",
+        marginBottom: "20px",
+      }}
+    >
+      {cards.map((c, i) => (
+        <StatCard
+          key={i}
+          label={c.label}
+          value={c.value}
+          icon={c.icon}
+          trend={c.trend}
+          variant={c.variant}
+        />
+      ))}
+    </div>
+  );
 }

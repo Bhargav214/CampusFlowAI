@@ -2,7 +2,7 @@ from __future__ import annotations
 from models.student import Student
 from models.subject import Subject
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -20,7 +20,7 @@ class Mark(Base):
     marks_obtained: Mapped[float] = mapped_column(Float, nullable=False)
     max_marks: Mapped[float] = mapped_column(Float, nullable=False)
     grade: Mapped[str | None] = mapped_column(String(10), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     student: Mapped["Student"] = relationship(back_populates="marks")
     subject: Mapped["Subject"] = relationship(back_populates="marks")

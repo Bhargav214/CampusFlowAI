@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from models.marks import Mark
 from models.student import Student
-from schemas.marks import MarkCreate, MarkResponse
+from models.subject import Subject
+from schemas.marks import MarkCreate, MarkResponse, BulkMarkCreate
 from auth.dependencies import require_role, get_current_user
 
 router = APIRouter(
@@ -37,7 +38,13 @@ def create_marks(
     if marks_obtained is None and hasattr(data, "internal") and hasattr(data, "external"):
         marks_obtained = data.internal + data.external
 
-    if marks_obtained is not None and marks_obtained > data.max_marks:
+    if marks_obtained is None:
+        raise HTTPException(
+            status_code=400,
+            detail="marks_obtained is required"
+        )
+
+    if marks_obtained > data.max_marks:
         raise HTTPException(
             status_code=400,
             detail="Marks obtained cannot exceed maximum marks"
@@ -59,21 +66,121 @@ def create_marks(
     return marks
 
 
+@router.post("/bulk")
+def create_marks_bulk(
+    data: BulkMarkCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "faculty"))
+):
+    """
+    Atomic batch upsert for classroom marks entry.
+    Updates existing grade and marks if recorded, or inserts new evaluation records.
+    """
+    if not data.records:
+        return {
+            "status": "success",
+            "message": "No marks records provided",
+            "inserted": 0,
+            "updated": 0,
+            "total": 0
+        }
+
+    inserted = 0
+    updated = 0
+
+    def compute_letter_grade(score: float, max_s: float) -> str:
+        if max_s <= 0:
+            return "F"
+        pct = (score / max_s) * 100
+        if pct >= 90:
+            return "A+"
+        elif pct >= 80:
+            return "A"
+        elif pct >= 70:
+            return "B"
+        elif pct >= 60:
+            return "C"
+        elif pct >= 50:
+            return "D"
+        return "F"
+
+    try:
+        for item in data.records:
+            if item.marks_obtained > item.max_marks:
+                raise ValueError(
+                    f"Student {item.student_id}: marks obtained ({item.marks_obtained}) exceeds max marks ({item.max_marks})"
+                )
+
+            grade = item.grade or compute_letter_grade(item.marks_obtained, item.max_marks)
+
+            existing = db.query(Mark).filter(
+                Mark.student_id == item.student_id,
+                Mark.subject_id == item.subject_id,
+                Mark.exam_type == item.exam_type
+            ).first()
+
+            if existing:
+                existing.marks_obtained = item.marks_obtained
+                existing.max_marks = item.max_marks
+                existing.grade = grade
+                updated += 1
+            else:
+                record = Mark(
+                    student_id=item.student_id,
+                    subject_id=item.subject_id,
+                    exam_type=item.exam_type,
+                    marks_obtained=item.marks_obtained,
+                    max_marks=item.max_marks,
+                    grade=grade
+                )
+                db.add(record)
+                inserted += 1
+
+        db.commit()
+    except ValueError as ve:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch marks processing failed: {exc}"
+        )
+
+    return {
+        "status": "success",
+        "message": f"Successfully processed {len(data.records)} mark records ({inserted} inserted, {updated} updated)",
+        "inserted": inserted,
+        "updated": updated,
+        "total": len(data.records)
+    }
+
+
 @router.get("/", response_model=list[MarkResponse])
 def get_marks(
     skip: int = 0,
     limit: int = 500,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(get_current_user),
 ):
     """
     Admin / Faculty: returns all marks records.
     Student: returns ONLY the authenticated student's own marks.
     The student identity is derived from the JWT — never from a request parameter.
     """
-
     if current_user.role in ("admin", "faculty"):
-        return db.query(Mark).offset(skip).limit(limit).all()
+        records = (
+            db.query(Mark, Subject.name.label("subject_name"))
+            .outerjoin(Subject, Mark.subject_id == Subject.id)
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        result = []
+        for mark, subject_name in records:
+            mark.subject_name = subject_name
+            result.append(mark)
+        return result
 
     if current_user.role == "student":
         student = db.query(Student).filter(
@@ -86,9 +193,17 @@ def get_marks(
                 detail="Student profile not found for this account"
             )
 
-        return db.query(Mark).filter(
-            Mark.student_id == student.id
-        ).all()
+        records = (
+            db.query(Mark, Subject.name.label("subject_name"))
+            .outerjoin(Subject, Mark.subject_id == Subject.id)
+            .filter(Mark.student_id == student.id)
+            .all()
+        )
+        result = []
+        for mark, subject_name in records:
+            mark.subject_name = subject_name
+            result.append(mark)
+        return result
 
     raise HTTPException(
         status_code=403,

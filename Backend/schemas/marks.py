@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -22,8 +22,23 @@ class MarkBase(BaseModel):
             )
 
         return self
+
+
 class MarkCreate(MarkBase):
     pass
+
+
+class MarkBulkItem(BaseModel):
+    student_id: int
+    subject_id: int
+    exam_type: str = Field(..., max_length=50)
+    marks_obtained: float = Field(..., ge=0)
+    max_marks: float = Field(..., gt=0)
+    grade: Optional[str] = Field(default=None, max_length=10)
+
+
+class BulkMarkCreate(BaseModel):
+    records: List[MarkBulkItem]
 
 
 class MarkUpdate(BaseModel):
@@ -49,6 +64,7 @@ class MarkUpdate(BaseModel):
 
 class MarkResponse(MarkBase):
     id: int
+    subject_name: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(

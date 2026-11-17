@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timezone
+from typing import Optional
+from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database.connection import get_db
@@ -10,14 +13,52 @@ from analytics.ml.predict import predict_all_students
 
 from analytics.dashboard import get_dashboard_stats
 from analytics.queries import subject_performance, attendance_trend
+from analytics.nl_query import process_natural_language_query
 from models.student import Student
 from models.attendance import Attendance
 from models.marks import Mark
+from models.parent_student import ParentStudentLink
+from models.notification import ParentNotification
 
 router = APIRouter(
     prefix="/analytics",
     tags=["Analytics"]
 )
+
+
+class InterventionRequest(BaseModel):
+    student_id: int
+    type: str = Field(default="Academic Warning", max_length=100)
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+class NaturalLanguageQueryRequest(BaseModel):
+    query: str = Field(..., max_length=300)
+
+
+@router.post("/ask")
+def ask_campusflow_ai(
+    data: NaturalLanguageQueryRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "faculty", "student"))
+):
+    """
+    AI-assisted natural language data querying.
+    Parses plain-English queries and returns instant tabular analytics.
+    """
+    return process_natural_language_query(data.query, db)
+
+
+@router.get("/query")
+def query_campusflow_ai(
+    q: str = "",
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "faculty", "student"))
+):
+    """
+    GET variant for quick URL-based AI querying.
+    """
+    return process_natural_language_query(q, db)
 
 
 @router.get("/dashboard")
@@ -155,12 +196,74 @@ def train_ml_model(
 @router.get("/ml/risk")
 def get_ml_risk(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin"))
+    current_user=Depends(require_role("admin", "faculty"))
 ):
     results = predict_all_students(db)
     return {
         "total_students": len(results),
         "students": results
+    }
+
+
+@router.post("/intervene")
+def trigger_intervention(
+    data: InterventionRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "faculty"))
+):
+    """
+    Records an academic intervention triggered by faculty or admin.
+    Notifies linked parent/guardian accounts in real-time and logs the action.
+    """
+    student = db.query(Student).filter(Student.id == data.student_id).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Student with ID {data.student_id} not found."
+        )
+
+    # Find any linked guardians for this student
+    links = db.query(ParentStudentLink).filter(
+        ParentStudentLink.student_id == student.id,
+        ParentStudentLink.status == "approved"
+    ).all()
+
+    guardian_count = 0
+    student_name = f"{getattr(student, 'first_name', '')} {getattr(student, 'last_name', '')}".strip() or getattr(student, "name", f"Student #{student.id}")
+
+    for link in links:
+        notification = ParentNotification(
+            parent_user_id=link.parent_user_id,
+            student_id=student.id,
+            title=f"Academic Alert: {data.type}",
+            message=(
+                data.notes
+                or f"Faculty has initiated an academic intervention ({data.type}) for {student_name}."
+            )[:250],
+            type="risk_change",
+            is_read=False,
+            created_at=datetime.now(timezone.utc)
+        )
+        db.add(notification)
+        guardian_count += 1
+
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to record intervention: {exc}"
+        )
+
+    return {
+        "status": "success",
+        "message": f"Intervention '{data.type}' successfully logged for {student_name}.",
+        "student_id": student.id,
+        "student_name": student_name,
+        "type": data.type,
+        "guardians_notified": guardian_count,
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 

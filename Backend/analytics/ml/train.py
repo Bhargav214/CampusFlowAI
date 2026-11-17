@@ -84,7 +84,7 @@ def train_model(db):
 )
 
     # ---------------------------------
-    # Save model
+    # Save model & refresh in-memory cache
     # ---------------------------------
 
     joblib.dump(
@@ -98,6 +98,12 @@ def train_model(db):
         },
         MODEL_PATH
     )
+
+    try:
+        from analytics.ml.predict import load_model_bundle
+        load_model_bundle(force_reload=True)
+    except Exception:
+        pass
 
 
     return {
